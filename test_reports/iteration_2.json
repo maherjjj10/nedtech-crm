@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 2 backend testing — 23/28 pytest cases passed. All new features (Team Invites happy path + errors + email-not-configured shape, Billing plans/checkout/status/session, Calendar dormant 503s, tenant isolation for invites) work correctly. HOWEVER a CRITICAL regression was uncovered: the /clients CRUD router (POST/GET/GET-by-id/PATCH/DELETE /api/v1/clients) is NO LONGER REGISTERED in the API. All these endpoints return 404 Not Found. This blocks Client 360 note/timeline tests (client cannot be created), the tenant-isolation-notes test, and iteration-1 clients regression.",
+  "root_cause": "In /app/backend/app/modules/registry.py the two crm-gated routers are both added to MODULES with code='crm' (clients_router AND client_notes_router). /app/backend/app/core/module_registry.py::register_module stores modules in a dict keyed by 'code' (_registry[mod.code] = mod), so the second registration for code='crm' OVERWRITES the first. list_modules() therefore only returns client_notes_router; clients_router is never included by server.py. openapi.json confirms only /clients/{id}/notes and /clients/{id}/timeline paths exist under /clients — no base CRUD paths.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST/GET/PATCH/DELETE /api/v1/clients", "issue": "Route not registered — returns 404 Not Found. Root cause: register_module overwrites by code, so second crm entry (client_notes) evicts clients_router from _registry. Iteration-1 CRUD is fully broken.", "priority": "CRITICAL"},
+      {"endpoint": "N/A (module gate response)", "issue": "When CRM module is disabled and clients_router WERE registered, module_gate would return 403; but currently endpoint is 404 (route missing) — masked by the routing bug above.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/v1/tenants/me/invites", "issue": "email validator rejects the .test TLD (special-use reserved) — tests must use a real-looking domain (.com/.example.com). Consider allowing test TLDs or documenting."},
+      {"endpoint": "GET /api/v1/calendar/status,/connect,/sync-task", "issue": "All three require auth (UserDep). This is fine, but /status could arguably be public; not blocking."}
+    ]
+  },
+  "test_results_detail": {
+    "passed": [
+      "TestInvites: create invite (email={sent:false,reason:'email_not_configured'}), list, public preview (no auth), duplicate-email 409, accept (tenant_id matches inviter), re-accept 404, revoke 204, accept-revoked 404",
+      "TestBilling: /plans returns 3 plans with amount/currency/interval/price_id, configured=true, onboarding_url present; /billing/status → {plan:null,status:'free'}; /billing/checkout returns checkout_url+session_id; GET /billing/status/{session_id} works without auth",
+      "TestCalendar: /calendar/status → {configured:false,connected:false}; /calendar/connect → 503; POST /calendar/sync-task → 503",
+      "TestTenantIsolation: second tenant registration now works (iter-1 google_sub fix confirmed). Tenant B does NOT see Tenant A invites",
+      "Regression: /health, /auth/me, /pipeline/stages, /pipeline/summary, /tasks, /invoices + PDF, /expenses, /reports/summary, /dashboard/overview, /tenants/me, /ai/tasks, /ai/run"
+    ],
+    "failed": [
+      "TestClient360.test_client_notes_crud — POST /clients 404 (route missing)",
+      "TestClient360.test_client_timeline — POST /clients 404",
+      "TestTenantIsolation.test_b_cannot_see_a_notes — POST /clients 404 (cannot create source client)",
+      "TestRegression.test_clients_crud — POST /clients 404",
+      "TestRegression.test_module_toggle — after disabling crm, GET /clients returned 404 instead of expected 403 (again, because /clients route isn't registered, not because gate is broken)"
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration2.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "CRITICAL FIX: In /app/backend/app/modules/registry.py, allow multiple routers to share the same module code. Options: (a) change _registry to a dict of code -> list[ModuleDefinition] and update list_modules()/get_module()/module_gate() accordingly; (b) keep _registry keyed by (code,id(router)); or (c) revert the dedup-by-router-id in registry.py and instead register clients_router under code='crm' and mount client_notes_router directly in server.py (already done via _client_notes_router import) so it doesn't need to go through register_module at all. Recommend option (c): drop the second ModuleDefinition(code='crm', router=client_notes_router) from MODULES since server.py already includes client_notes_router explicitly.",
+    "Verify GET /modules catalog after fix still returns each module once (currently client_notes overrides crm entry name).",
+    "Confirm module_gate returns 403 (not 404) when CRM is disabled — retest after fix.",
+    "Consider allowing .test/.example TLDs in EmailStr for invites, or document the restriction."
+  ],
+  "critical_code_review_comments": [
+    "registry.py silently overwrites modules by code — this is fragile; add an assertion or use a list.",
+    "invites/routes.py stores `id` inside the upserted doc using new_id() per call but $set overwrites so the id changes on every re-invite of same email — okay, but returned invite['id'] may not match a prior listing. Consider using $setOnInsert for id.",
+    "billing/routes.py: catches broad Exception when listing prices — could swallow real Stripe misconfig; log the error.",
+    "calendar/routes.py: dead code lines 59-60 build url twice; first construction is unused. Cleanup.",
+    "server.py client_notes_router include is done AFTER the modules loop but relies on register_module NOT having stored it — a bit brittle if MODULES ordering changes."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration2.py (new)"],
+  "success_rate": {"backend": "82% (23/28)", "frontend": "not tested (backend-only)"},
+  "test_credentials": "owner@nedtech.media / Password123! (as documented)",
+  "seed_data_creation": "Created ~1 second tenant (Owner B) + several TEST_ clients/deals/invoices/notes/invites for testing. Not cleaned up (small footprint).",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Run: `cd /app && python -m pytest backend/tests/test_iteration2.py -v -n 0 --tb=short`. Use -n 0 (serial) because TestRegression.test_module_toggle toggles crm on/off and races with parallel TestClient360. After main agent fixes registry.py, all 5 currently-failing tests should pass. The .test TLD is blocked by EmailStr — tests use nedtech.example.com. CRM module has been left ENABLED on owner tenant.",
+  "rca_of_the_issue": "See root_cause field. Fix: remove the duplicate ModuleDefinition(code='crm', router=client_notes_router) from MODULES in /app/backend/app/modules/registry.py — server.py already explicitly includes client_notes_router at line 67-69, so it's double-wired and the double-wiring corrupts _registry."
+}

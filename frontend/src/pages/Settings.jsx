@@ -5,9 +5,11 @@ import { Input } from "../components/ui/input";
 import { Card } from "../components/ui/card";
 import { Label } from "../components/ui/label";
 import { Switch } from "../components/ui/switch";
+import { Badge } from "../components/ui/badge";
 import { api } from "../lib/apiClient";
 import { toast } from "sonner";
 import { useAuth } from "../lib/authContext";
+import { Calendar as CalendarIcon, Check, Link as LinkIcon } from "lucide-react";
 
 const MODULE_LABELS = {
   crm: "CRM & clients", sales: "Sales pipeline", tasks: "Tasks & projects",
@@ -23,6 +25,7 @@ export default function Settings() {
   const { tenant, refresh } = useAuth();
   const [form, setForm] = useState({ name: "", currency: "USD", vat_rate: 0, locale: "en", address: "", phone: "", website: "" });
   const [modules, setModules] = useState({});
+  const [calendar, setCalendar] = useState(null);
 
   useEffect(() => {
     if (tenant) {
@@ -33,7 +36,17 @@ export default function Settings() {
       });
       setModules(tenant.modules || {});
     }
+    api.get("/calendar/status").then(r => setCalendar(r.data)).catch(()=>{});
   }, [tenant]);
+
+  const connectCalendar = async () => {
+    try {
+      const { data } = await api.get("/calendar/connect");
+      window.location.href = data.authorize_url;
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Add GOOGLE_CLIENT_ID/SECRET first");
+    }
+  };
 
   const save = async (e) => {
     e.preventDefault();
@@ -69,6 +82,23 @@ export default function Settings() {
             </div>
             <Button type="submit" data-testid="save-settings-btn">Save changes</Button>
           </form>
+        </Card>
+
+        <Card className="p-6 border-border/70 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-1">
+            <CalendarIcon className="h-4 w-4" />
+            <h3 className="text-lg font-semibold">Google Calendar sync</h3>
+            {calendar?.connected && <Badge className="ml-1"><Check className="h-3 w-3 mr-1" />Connected</Badge>}
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            {calendar?.configured
+              ? "Push task due dates as events into your Google Calendar. One-click connect below."
+              : "Ready to activate — paste GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in backend/.env, then click connect."}
+          </p>
+          <Button onClick={connectCalendar} disabled={!calendar?.configured} data-testid="connect-calendar-btn">
+            <LinkIcon className="h-4 w-4 mr-1" />
+            {calendar?.connected ? "Reconnect Google Calendar" : "Connect Google Calendar"}
+          </Button>
         </Card>
 
         <Card className="p-6 border-border/70">

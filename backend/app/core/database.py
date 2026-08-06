@@ -65,10 +65,17 @@ async def ensure_indexes() -> None:
         "activities",
         "ai_conversations",
         "billing",
+        "invites",
+        "client_notes",
+        "integrations",
+        "payment_transactions",
     ]
     for coll in tenant_scoped:
         await db[coll].create_index([("tenant_id", 1), ("created_at", -1)])
         await db[coll].create_index([("tenant_id", 1), ("id", 1)])
+
+    # Invites: unique per tenant+email while pending
+    await db.invites.create_index("token", unique=True)
 
     # Text search on clients and deals
     await db.clients.create_index(

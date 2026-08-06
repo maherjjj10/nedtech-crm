@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import PageHeader from "../components/layout/PageHeader";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -96,7 +97,7 @@ export default function Clients() {
           {clients.map((c) => (
             <div key={c.id} className="grid grid-cols-12 px-6 py-4 border-b border-border/60 last:border-0 items-center text-sm" data-testid={`client-row-${c.id}`}>
               <div className="col-span-4">
-                <div className="font-medium">{c.name}</div>
+                <Link to={`/clients/${c.id}`} className="font-medium hover:underline" data-testid={`client-link-${c.id}`}>{c.name}</Link>
                 <div className="flex gap-1 mt-1 flex-wrap">
                   {(c.tags || []).slice(0,3).map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
                 </div>
