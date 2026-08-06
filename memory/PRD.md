@@ -1,54 +1,48 @@
 # NED Tech CRM/ERP — Product Requirements
 
-## Original brief (verbatim)
-Multi-tenant SaaS CRM/ERP for NED Tech Media. Modules: CRM, Sales pipeline, Tasks/Projects, Finance (quotes/invoices/expenses/reports), Products, HR/Employees, Files, Calendar, Communication, Reports, Settings, AI Assistant. UI like HubSpot/Linear/Stripe/Notion. Modular (each module toggleable). Multi-tenant. Sellable as SaaS.
+## Original brief
+Multi-tenant SaaS CRM/ERP. Modules: CRM, Sales, Tasks, Finance, HR, AI, Files, Calendar, Reports, Settings. UI like HubSpot/Linear/Stripe/Notion. Modular (each toggleable). Multi-tenant, sellable as SaaS.
 
 ## Decisions
-- **DB**: MongoDB (repository pattern in place; swappable)
-- **Auth**: JWT email/password + Google OAuth ready (needs client id/secret)
+- **DB**: MongoDB (repository pattern; swappable to Postgres later)
+- **Auth**: JWT email/password + Google OAuth (dormant until keys set)
 - **AI**: GPT-5.4 via Emergent LLM key
-- **Payments**: Stripe (keys not yet provided)
-- **Email**: Resend (managed, keys not yet provided)
-- **API**: FastAPI, `/api/v1/*`
-- **Architecture**: Clean Architecture — `core/` (config, db, security, deps, repository, module registry) + `modules/` (auth, tenants, dashboard, clients, pipeline, tasks, finance, products, employees, ai). Business logic never touches Mongo directly — always through `BaseRepository`.
-- **Multi-tenant**: `tenant_id` on every doc; compound indexes; module_gate dep blocks disabled modules per tenant.
+- **Payments**: Stripe subscriptions on platform-managed sandbox — LIVE
+- **Email**: Emergent-managed Resend (graceful fallback if key not provisioned)
+- **API**: FastAPI, `/api/v1/*`; Stripe webhook at `/api/stripe/webhook`
+- **Architecture**: Clean Architecture — `core/` (config, db, security, deps, repository, module registry) + `modules/` (auth, tenants, dashboard, clients, client_notes, pipeline, tasks, finance, products, employees, ai, invites, billing, calendar). Business logic never touches Mongo directly — always through `BaseRepository`.
 
 ## Personas
-- **Owner** (default role on registration) — full access, billing, module toggles
-- **Admin / Manager / Member** — role-gated actions (baseline in place; per-endpoint hardening deferred)
+- Owner, Admin, Manager, Member (invite carries role)
 
-## Implemented in V1 (2026-02)
-- Registration + login with JWT; auto workspace creation
-- Google OAuth endpoints (`/auth/google/{login,callback}`) wired via Authlib (activates when GOOGLE_CLIENT_ID/SECRET are set)
-- Dashboard with KPIs, 6-month revenue trend, upcoming invoices, activity feed
-- Clients: CRUD, search, tags, notes; activity log entries
-- Sales pipeline: Kanban with 6 default stages, deal CRUD, per-stage summary
-- Tasks: Kanban + list view, priorities, statuses
-- Projects: basic CRUD
-- Finance: invoices (auto-numbered, tax computation, PDF export via reportlab), expenses, revenue/expense/profit summary
-- Products & services: CRUD with SKU, category, price, cost, tax
-- Employees: profile CRUD with role, salary, department
-- AI Assistant: GPT-5.4 via emergentintegrations with 6 tasks (summarize, quote, email, sales analysis, follow-up, chat) — verified working
-- Settings: company info + module toggle grid (11 current + 7 future modules) 
-- Dark & light theme, Cabinet Grotesk headings + Satoshi body
+## Implemented in V1 + V2 (2026-02)
+- Registration + login (JWT); auto workspace creation
+- Google OAuth endpoints wired (dormant when keys empty)
+- Dashboard: KPIs, revenue trend, upcoming invoices, activity feed
+- Clients: CRUD, search, tags, notes
+- **Client 360**: detail page with tabs (Timeline / Notes / Deals / Invoices) and stats
+- Sales pipeline: Kanban, 6 stages, deal CRUD, summary
+- Tasks & Projects: Kanban + list, priorities, statuses
+- Finance: invoices with auto-numbering + PDF export, expenses, revenue/expense/profit summary
+- Products & Services: CRUD
+- Employees / Team: CRUD
+- **Team Invites**: token-based invite flow — email sends via Emergent-managed Resend; graceful copy-link fallback if email key missing
+- **Stripe Subscriptions**: 3 plans (Starter $19/Pro $49/Business $129), Checkout Session flow, webhook at `/api/stripe/webhook`, status endpoint, `billing/` table per tenant. Uses SMP (Stripe manages tax) in NL sandbox.
+- **Google Calendar Sync**: full scaffolding (`/calendar/status|connect|callback|sync-task`) — dormant with 503 until keys set; front-end shows "not configured" state
+- AI Assistant: GPT-5.4 with 6 preset tasks
+- Settings: company info, module toggle grid (11 current + 7 future), Google Calendar connect card
 
 ## Backlog (P1)
-- Client detail page (timeline, notes tab, files tab, related deals/invoices)
-- Calendar view for tasks + Google Calendar sync
-- Team invites (invite existing tenant), full RBAC enforcement per module action
-- Stripe subscription billing (checkout + webhook) — playbook received
-- Resend email templates (invoice-sent, welcome) — playbook received
 - File manager with object storage
+- Full-tenant RBAC per-action enforcement (currently: owner/admin can invite; others need extending)
 - Reports export to Excel
-- Advanced RBAC roles editor
-
-## Backlog (P2 — future modules)
-- Inventory, POS, Restaurant orders (NED Order)
-- Marketing automation, Website builder
-- Customer Portal, Document Management
-- Accounting depth, HR & Payroll depth, AI Automation, API Marketplace
+- Refactor billing gate to also invalidate feature access when plan expires
+- Full Google Calendar sync ↔ tasks bi-directional
 - WhatsApp integration (Twilio)
 
-## Known state
-- All backend endpoints verified via testing agent (94% pass, 1 HIGH bug fixed: users.google_sub partial index).
-- Auth via `Authorization: Bearer <token>`; module gating via `tenants.modules.<code>` boolean.
+## Backlog (P2 — future modules)
+- Inventory, POS, Restaurant orders, Marketing automation, Website builder, Customer Portal, Document Management, Accounting depth, Payroll depth, AI Automation, API Marketplace
+
+## Test state (2026-02)
+- Backend test suite: **28/28 passing** (`/app/backend/tests/test_iteration2.py`, iteration 3 report)
+- Key CRITICAL bug fixed this iteration: `register_module` was overwriting duplicate `code` entries — clients_router had been evicted by client_notes_router. Fix: mount client_notes_router directly from server.py; keep MODULES list unique per code.
