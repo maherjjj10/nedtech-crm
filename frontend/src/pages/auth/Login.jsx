@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -12,16 +12,31 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // Landing on the login page = we want a clean slate. Wipe any stale auth
+  // tokens or impersonation artefacts so we can't be tricked into thinking
+  // the user is already signed in.
+  useEffect(() => {
+    try {
+      localStorage.removeItem("ned_token");
+      localStorage.removeItem("ned_token_original");
+    } catch { /* ignore */ }
+  }, []);
 
   async function onSubmit(e) {
     e.preventDefault();
+    setError("");
     setLoading(true);
     try {
       await login(email.trim(), password);
       toast.success("Welcome back");
       nav("/");
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Login failed");
+      const msg = err?.response?.data?.detail
+        || (err?.response ? `Login failed (${err.response.status})` : "Cannot reach server — check your connection");
+      setError(msg);
+      toast.error(msg);
     } finally { setLoading(false); }
   }
 
@@ -63,6 +78,12 @@ export default function Login() {
           <Button type="submit" className="w-full" disabled={loading} data-testid="login-submit-btn">
             {loading ? "Signing in…" : "Sign in"}
           </Button>
+
+          {error && (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-sm p-3" data-testid="login-error">
+              {error}
+            </div>
+          )}
 
           <div className="text-sm text-center text-muted-foreground">
             Don&apos;t have an account?{" "}
