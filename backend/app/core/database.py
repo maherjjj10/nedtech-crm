@@ -34,7 +34,18 @@ async def ensure_indexes() -> None:
 
     # Users
     await db.users.create_index("email", unique=True)
-    await db.users.create_index([("google_sub", 1)], sparse=True, unique=True)
+    # partial index: only enforce uniqueness when google_sub is an actual string
+    # (a plain sparse index still indexes documents with google_sub=null, which breaks
+    #  registration for password-only users).
+    try:
+        await db.users.drop_index("google_sub_1")
+    except Exception:
+        pass
+    await db.users.create_index(
+        [("google_sub", 1)],
+        unique=True,
+        partialFilterExpression={"google_sub": {"$type": "string"}},
+    )
     await db.users.create_index([("tenant_id", 1)])
 
     # Tenants
