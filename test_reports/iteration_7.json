@@ -1,0 +1,25 @@
+{
+  "summary": "Verified the Platform Owner login bug fix end-to-end. Backend: 6 new login-bug tests + 13 iter-6 regressions + 24 platform-owner regressions = 43/43 PASSED (serial, -n 0). Frontend Playwright: fresh login as maher@tapbyned.com redirects to Dashboard, sidebar+footer render user, Platform Admin link present, impersonation-banner absent (count=0). Stale ned_token_original='stale' + ned_token='old-invalid' set in localStorage before login are BOTH cleared after login, and no banner appears. Logout clears both ned_token and ned_token_original and navigates to /auth/login. Backend edge cases verified: whitespace email stripped, case-insensitive email login, wrong password still 401, empty password rejected. Password unchanged (still NedTechOwner2026!).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter7_login_bug.py",
+    "/app/backend/tests/test_iter6.py",
+    "/app/backend/tests/test_platform_owner.py",
+    "/app/test_reports/pytest/iter7.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "test_platform_owner.py::TestSeed::test_idempotent_on_restart restarts supervisor:backend which causes 502s in parallel test workers (pytest.ini uses xdist -n 2 --dist loadscope). Recommend marking this test @pytest.mark.serial or running xdist with --dist loadfile and pinning restarts to a single worker. All tests pass with -n 0.",
+    "authContext.jsx: fetchMe() catches ANY error and removes ned_token — including transient 5xx/network blips. Consider narrowing to 401 to avoid silent forced-logout on backend hiccups.",
+    "apiClient.js 401 interceptor navigates via window.location.href — full reload wipes React state; that is fine here but combined with fetchMe() removing token on any error means a single failed /auth/me can loop. Consider skipping interceptor redirect for /auth/me path."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (43/43)", "frontend": "100% (3/3)"},
+  "test_credentials": "Platform Owner: maher@tapbyned.com / NedTechOwner2026! (verified still valid post-testing)",
+  "seed_data_creation": "None. Only existing seeded platform_owner account used.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run backend tests serially: `pytest backend/tests/ -n 0`. Running in parallel fails because test_idempotent_on_restart restarts the backend and races other workers with 502s. Login bug is fully fixed on both backend (whitespace/case handling) and frontend (stale ned_token_original cleanup in login/register/logout and 401 interceptor; ImpersonationBanner reads JWT claim only).",
+  "rca of the issue": "Reproduction: 1) Log in as platform_owner, 2) Perform impersonation which sets ned_token_original in localStorage, 3) Log out (previous logout removed only ned_token, leaving ned_token_original), 4) Log back in — ImpersonationBanner previously derived isImpersonating from localStorage.getItem('ned_token_original'), so it rendered permanently, making the user believe login failed. Mitigation now in place: (a) authContext login/register/logout all removeItem('ned_token_original'); (b) apiClient 401 interceptor also purges it; (c) ImpersonationBanner only trusts JWT user.impersonating_from; (d) backend /auth/login strips+lowers email so pasted trailing spaces and capitalization no longer cause invalid-credentials 401. All verified passing."
+}

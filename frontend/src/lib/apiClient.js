@@ -15,6 +15,7 @@ api.interceptors.response.use(
   (err) => {
     if (err?.response?.status === 401) {
       localStorage.removeItem("ned_token");
+      localStorage.removeItem("ned_token_original");
       if (!window.location.pathname.startsWith("/auth")) {
         window.location.href = "/auth/login";
       }

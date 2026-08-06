@@ -106,7 +106,8 @@ async def register(body: RegisterInput):
 @router.post("/login", response_model=TokenResponse)
 async def login(body: LoginInput):
     db = get_db()
-    user = await db.users.find_one({"email": body.email.lower()})
+    email = body.email.strip().lower()
+    user = await db.users.find_one({"email": email})
     if not user or not user.get("password_hash") or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
     tenant = await db.tenants.find_one({"id": user["tenant_id"]})

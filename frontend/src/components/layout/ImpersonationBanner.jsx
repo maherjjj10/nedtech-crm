@@ -6,7 +6,10 @@ import { api } from "../../lib/apiClient";
 
 export default function ImpersonationBanner() {
   const { user, refresh } = useAuth();
-  const isImpersonating = user?.impersonating_from || localStorage.getItem("ned_token_original");
+  // Only trust the JWT claim (from /auth/me). Never rely on stale localStorage —
+  // that could be leftover from a previous browser session and permanently show
+  // the banner even after a clean login.
+  const isImpersonating = !!user?.impersonating_from;
   if (!isImpersonating) return null;
 
   const stop = async () => {
