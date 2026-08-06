@@ -81,17 +81,24 @@ async def get_timeline(client_id: str, user: UserDep):
         {"tenant_id": user.tenant_id, "client_id": client_id}, {"_id": 0}
     ).sort([("created_at", -1)]).to_list(length=200)
 
+    contracts = await db.contracts.find(
+        {"tenant_id": user.tenant_id, "client_id": client_id}, {"_id": 0}
+    ).sort([("created_at", -1)]).to_list(length=200)
+
     return {
         "client": client,
         "activities": activities,
         "deals": deals,
         "invoices": invoices,
         "notes": notes,
+        "contracts": contracts,
         "stats": {
             "deal_count": len(deals),
             "won_value": sum(d.get("value", 0) for d in deals if d.get("stage") == "won"),
             "invoice_count": len(invoices),
             "paid_value": sum(inv.get("amount", 0) for inv in invoices if inv.get("status") == "paid"),
             "outstanding": sum(inv.get("amount", 0) for inv in invoices if inv.get("status") in ("sent", "overdue")),
+            "contract_count": len(contracts),
+            "signed_contract_count": sum(1 for c in contracts if c.get("status") in ("signed", "completed")),
         },
     }

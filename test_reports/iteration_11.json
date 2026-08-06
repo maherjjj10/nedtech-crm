@@ -1,0 +1,30 @@
+{
+  "summary": "Contracts V2 Phase 1 comprehensive testing. Backend: 23/23 pytest tests pass covering seed idempotency (8 system templates), tenant isolation, snapshot capture, verification_id NED-C- format, version history + restore, send/view/sign(typed+drawn)/reject/comment public flow, dashboard, audit chronological order, PDF (starts with %PDF-), client timeline with contracts, and refuse states (409 double-sign, 400 sign-without-consent, 400 drawn-without-data, 400 edit-signed, 400 cancel-signed). Frontend: login OK, /contracts shows all 6 dashboard cards (Active/Signed/Pending Sign/Expiring Soon/Contract Value/Signed Revenue), new-contract-btn opens dialog with all data-testids (contract-client-select, contract-template-select, 15 rich-editor buttons rte-*, all 13 variable chips var-*). E2E: created contract with TestCo + Website Development Agreement + amount 12500, verification badge NED-C-AF9EE3 shown, row appeared; Send flipped status to sent; public URL rendered with 'TestCo', 'Jane Roe', 'USD 12,500.00' substituted; Typed signature flow flipped status to signed with 'Signed — thank you.' banner. Version history dialog + Restore button visible. Client detail page shows 'Contracts' tab (tab-contracts) listing 2 contracts, sidebar shows contact_person + VAT + address.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Send button feedback", "issue": "Transient 'Failed' toast appeared briefly on send-contract click during a first attempt (likely a 401 on stale token during page load). API state confirmed status='sent'. Not reproducible on subsequent runs.", "affected_selectors": ["send-contract-{id}"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter11_contracts_v2.py",
+    "/app/test_reports/pytest/iter11_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes.py is ~800 lines — consider splitting into templates.py + contracts.py + public.py + pdf.py for maintainability.",
+    "_short_id() uses secrets.token_hex(3) — 24 bits = 16.7M combos; add uniqueness check or increase to 4 bytes to avoid future collisions across tenants.",
+    "PATCH re-uses full ContractIn model (all fields required); consider a ContractPatch with all Optional fields so callers don't have to resend body_html/title on partial updates.",
+    "PDF QR is drawn on every page in on_page hook; consider only last page for cleaner enterprise look.",
+    "Public GET flips 'sent' → 'viewed' but doesn't re-flip 'viewed' → 'sent' on re-view — correct. However there is no rate-limit on public/{token}/comment (anonymous) — potential spam vector."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter11_contracts_v2.py"],
+  "success_rate": {"backend": "100% (23/23)", "frontend": "100% of tested flows"},
+  "test_credentials": "owner@nedtech.media / Password123!",
+  "seed_data_creation": "Created TestCo client (Jane Roe) and multiple TEST_* + E2E_Iter11_Contract records in owner tenant. Second tenant registered via /auth/register for isolation test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Contracts V2 backend + frontend Phase 1 all green. When testing Phase 2/3, note: /auth/register expects field 'company_name' (not 'company'). System templates seed is idempotent by 'code' field. Variable substitution uses {{double_braces}}, not single. Public routes are unauthenticated at /api/v1/public/contracts/{token}. Contract PATCH requires full ContractIn body (title+body_html mandatory)."
+}

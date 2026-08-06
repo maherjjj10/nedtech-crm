@@ -16,6 +16,8 @@ class ClientIn(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     company: Optional[str] = None
+    contact_person: Optional[str] = None
+    vat_number: Optional[str] = None
     address: Optional[str] = None
     website: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
@@ -28,6 +30,8 @@ class ClientPatch(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     company: Optional[str] = None
+    contact_person: Optional[str] = None
+    vat_number: Optional[str] = None
     address: Optional[str] = None
     website: Optional[str] = None
     tags: Optional[list[str]] = None

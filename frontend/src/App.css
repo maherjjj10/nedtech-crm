@@ -1,1 +1,49 @@
 /* App-level (kept minimal — global styles live in index.css) */
+
+/* TipTap rich editor -------------------------------------------------------*/
+.ProseMirror { min-height: 320px; outline: none; }
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: hsl(var(--muted-foreground));
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.ProseMirror table {
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  overflow: hidden;
+  table-layout: fixed;
+  width: 100%;
+}
+.ProseMirror table td, .ProseMirror table th {
+  border: 1px solid hsl(var(--border));
+  padding: 6px 10px;
+  vertical-align: top;
+  min-width: 80px;
+  position: relative;
+}
+.ProseMirror table th {
+  background: hsl(var(--muted));
+  font-weight: 600;
+  text-align: left;
+}
+.ProseMirror img { max-width: 100%; height: auto; border-radius: 4px; }
+.ProseMirror hr { border: 0; border-top: 1px solid hsl(var(--border)); margin: 1.2em 0; }
+.ProseMirror blockquote {
+  border-left: 3px solid hsl(var(--border));
+  padding-left: 0.9em;
+  color: hsl(var(--muted-foreground));
+  margin: 0.8em 0;
+}
+
+/* Rendered contract HTML (public + PDF preview) */
+.contract-html h1 { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.6em; letter-spacing: -0.01em; }
+.contract-html h2 { font-size: 1.25rem; font-weight: 700; margin: 1.4em 0 0.4em; }
+.contract-html h3 { font-size: 1.05rem; font-weight: 600; margin: 1.2em 0 0.4em; }
+.contract-html p { margin: 0.5em 0; line-height: 1.7; }
+.contract-html ul, .contract-html ol { padding-left: 1.4em; margin: 0.5em 0; }
+.contract-html li { margin: 0.25em 0; }
+.contract-html table { width: 100%; border-collapse: collapse; margin: 0.8em 0; }
+.contract-html td, .contract-html th { border: 1px solid hsl(var(--border)); padding: 6px 10px; }
+.contract-html img { max-width: 100%; height: auto; }

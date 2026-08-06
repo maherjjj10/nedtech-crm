@@ -78,8 +78,10 @@ export default function ClientDetail() {
             </div>
             <div className="space-y-2 text-sm text-muted-foreground">
               {c.company && <div><span className="n-overline block text-xs mb-0.5">Company</span><span className="text-foreground">{c.company}</span></div>}
+              {c.contact_person && <div><span className="n-overline block text-xs mb-0.5">Contact person</span><span className="text-foreground">{c.contact_person}</span></div>}
               {c.email && <div><span className="n-overline block text-xs mb-0.5">Email</span><span className="text-foreground">{c.email}</span></div>}
               {c.phone && <div><span className="n-overline block text-xs mb-0.5">Phone</span><span className="text-foreground">{c.phone}</span></div>}
+              {c.vat_number && <div><span className="n-overline block text-xs mb-0.5">VAT number</span><span className="text-foreground font-mono text-xs">{c.vat_number}</span></div>}
               {c.website && <div><span className="n-overline block text-xs mb-0.5">Website</span><a className="underline text-foreground" href={c.website} target="_blank" rel="noreferrer">{c.website}</a></div>}
               {c.address && <div><span className="n-overline block text-xs mb-0.5">Address</span><span className="text-foreground">{c.address}</span></div>}
               {(c.tags || []).length > 0 && (
@@ -97,6 +99,7 @@ export default function ClientDetail() {
                 <TabsTrigger value="notes">Notes</TabsTrigger>
                 <TabsTrigger value="deals">Deals</TabsTrigger>
                 <TabsTrigger value="invoices">Invoices</TabsTrigger>
+                <TabsTrigger value="contracts" data-testid="tab-contracts">Contracts</TabsTrigger>
               </TabsList>
 
               <TabsContent value="timeline" className="mt-4">
@@ -155,6 +158,29 @@ export default function ClientDetail() {
                     <div key={inv.id} className="flex items-center justify-between px-6 py-3 border-b border-border/60 last:border-0 text-sm">
                       <div><div className="font-medium">{inv.number}</div><div className="text-xs text-muted-foreground">{formatDate(inv.due_date)} · {inv.status}</div></div>
                       <div className="font-semibold">{formatCurrency(inv.amount, inv.currency)}</div>
+                    </div>
+                  ))}
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="contracts" className="mt-4">
+                <Card className="border-border/70">
+                  {(data.contracts || []).length === 0 && (
+                    <div className="p-6 text-sm text-muted-foreground">
+                      No contracts yet. <Link className="underline" to="/contracts">Go to Contracts →</Link>
+                    </div>
+                  )}
+                  {(data.contracts || []).map(ct => (
+                    <div key={ct.id} className="flex items-center justify-between px-6 py-3 border-b border-border/60 last:border-0 text-sm" data-testid={`client-contract-${ct.id}`}>
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{ct.title}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {ct.verification_id ? `${ct.verification_id} · ` : ""}
+                          created {formatDate(ct.created_at)}
+                          {ct.contract_amount ? ` · ${formatCurrency(ct.contract_amount, ct.currency)}` : ""}
+                        </div>
+                      </div>
+                      <Badge variant={["signed","completed"].includes(ct.status) ? "default" : "outline"}>{ct.status}</Badge>
                     </div>
                   ))}
                 </Card>

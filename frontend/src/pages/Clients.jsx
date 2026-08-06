@@ -13,7 +13,7 @@ import { Plus, Search, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "../lib/format";
 
-const EMPTY = { name: "", email: "", phone: "", company: "", website: "", tags: [], status: "active", notes: "" };
+const EMPTY = { name: "", email: "", phone: "", company: "", contact_person: "", vat_number: "", address: "", website: "", tags: [], status: "active", notes: "" };
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -67,8 +67,11 @@ export default function Clients() {
                   <div className="col-span-2 space-y-1.5"><Label>Name</Label><Input value={form.name} onChange={(e)=>setForm({...form, name:e.target.value})} required data-testid="client-name-input" /></div>
                   <div className="space-y-1.5"><Label>Email</Label><Input type="email" value={form.email || ""} onChange={(e)=>setForm({...form, email:e.target.value})} /></div>
                   <div className="space-y-1.5"><Label>Phone</Label><Input value={form.phone || ""} onChange={(e)=>setForm({...form, phone:e.target.value})} /></div>
-                  <div className="space-y-1.5"><Label>Company</Label><Input value={form.company || ""} onChange={(e)=>setForm({...form, company:e.target.value})} /></div>
+                  <div className="space-y-1.5"><Label>Company</Label><Input value={form.company || ""} onChange={(e)=>setForm({...form, company:e.target.value})} data-testid="client-company-input" /></div>
+                  <div className="space-y-1.5"><Label>Contact person</Label><Input value={form.contact_person || ""} onChange={(e)=>setForm({...form, contact_person:e.target.value})} data-testid="client-contact-input" /></div>
+                  <div className="space-y-1.5"><Label>VAT number</Label><Input value={form.vat_number || ""} onChange={(e)=>setForm({...form, vat_number:e.target.value})} data-testid="client-vat-input" /></div>
                   <div className="space-y-1.5"><Label>Website</Label><Input value={form.website || ""} onChange={(e)=>setForm({...form, website:e.target.value})} /></div>
+                  <div className="col-span-2 space-y-1.5"><Label>Address</Label><Input value={form.address || ""} onChange={(e)=>setForm({...form, address:e.target.value})} data-testid="client-address-input" /></div>
                   <div className="col-span-2 space-y-1.5"><Label>Tags (comma separated)</Label><Input value={Array.isArray(form.tags) ? form.tags.join(", ") : form.tags} onChange={(e)=>setForm({...form, tags:e.target.value})} /></div>
                   <div className="col-span-2 space-y-1.5"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={(e)=>setForm({...form, notes:e.target.value})} /></div>
                 </div>
