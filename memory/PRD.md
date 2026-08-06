@@ -1,48 +1,53 @@
 # NED Tech CRM/ERP — Product Requirements
 
 ## Original brief
-Multi-tenant SaaS CRM/ERP. Modules: CRM, Sales, Tasks, Finance, HR, AI, Files, Calendar, Reports, Settings. UI like HubSpot/Linear/Stripe/Notion. Modular (each toggleable). Multi-tenant, sellable as SaaS.
+Multi-tenant SaaS CRM/ERP for NED Tech Media. Modular architecture. Sellable as SaaS.
 
-## Decisions
-- **DB**: MongoDB (repository pattern; swappable to Postgres later)
-- **Auth**: JWT email/password + Google OAuth (dormant until keys set)
+## Key decisions
+- **DB**: MongoDB (repository pattern; swappable)
+- **Auth**: JWT email/password + Google OAuth (dormant) + platform-owner seed
 - **AI**: GPT-5.4 via Emergent LLM key
-- **Payments**: Stripe subscriptions on platform-managed sandbox — LIVE
-- **Email**: Emergent-managed Resend (graceful fallback if key not provisioned)
+- **Payments**: Stripe subscriptions (platform sandbox, NL — SMP tax)
+- **Email**: Emergent-managed Resend (falls back to copy-link when key missing)
 - **API**: FastAPI, `/api/v1/*`; Stripe webhook at `/api/stripe/webhook`
-- **Architecture**: Clean Architecture — `core/` (config, db, security, deps, repository, module registry) + `modules/` (auth, tenants, dashboard, clients, client_notes, pipeline, tasks, finance, products, employees, ai, invites, billing, calendar). Business logic never touches Mongo directly — always through `BaseRepository`.
 
-## Personas
-- Owner, Admin, Manager, Member (invite carries role)
+## Role Hierarchy (6 tiers — implemented iteration 5)
+| Rank | Role | Scope | Notes |
+|------|------|-------|-------|
+| 100 | platform_owner | platform | ONE global. Immutable (`protected=true`). Auto-seeded from `PLATFORM_OWNER_EMAIL` on startup. Cannot be deleted/demoted/suspended via API. Can impersonate any tenant. |
+| 90 | super_admin | platform | Can view/manage all tenants + users. Can grant admin/manager/etc. Cannot grant super_admin (only platform_owner can). Cannot touch protected accounts. |
+| 60 | admin | tenant | Full workspace access. Invites, module toggles, billing. |
+| 40 | manager | tenant | Manages team + records within workspace. |
+| 20 | employee | tenant | Standard user. |
+| 10 | viewer | tenant | Read-only. |
 
-## Implemented in V1 + V2 (2026-02)
-- Registration + login (JWT); auto workspace creation
-- Google OAuth endpoints wired (dormant when keys empty)
-- Dashboard: KPIs, revenue trend, upcoming invoices, activity feed
-- Clients: CRUD, search, tags, notes
-- **Client 360**: detail page with tabs (Timeline / Notes / Deals / Invoices) and stats
-- Sales pipeline: Kanban, 6 stages, deal CRUD, summary
-- Tasks & Projects: Kanban + list, priorities, statuses
-- Finance: invoices with auto-numbering + PDF export, expenses, revenue/expense/profit summary
-- Products & Services: CRUD
-- Employees / Team: CRUD
-- **Team Invites**: token-based invite flow — email sends via Emergent-managed Resend; graceful copy-link fallback if email key missing
-- **Stripe Subscriptions**: 3 plans (Starter $19/Pro $49/Business $129), Checkout Session flow, webhook at `/api/stripe/webhook`, status endpoint, `billing/` table per tenant. Uses SMP (Stripe manages tax) in NL sandbox.
-- **Google Calendar Sync**: full scaffolding (`/calendar/status|connect|callback|sync-task`) — dormant with 503 until keys set; front-end shows "not configured" state
-- AI Assistant: GPT-5.4 with 6 preset tasks
-- Settings: company info, module toggle grid (11 current + 7 future), Google Calendar connect card
+`platform_role` and `tenant_role` (`role`) are stored separately on `users` documents — never collapsed into one enum.
 
-## Backlog (P1)
-- File manager with object storage
-- Full-tenant RBAC per-action enforcement (currently: owner/admin can invite; others need extending)
-- Reports export to Excel
-- Refactor billing gate to also invalidate feature access when plan expires
-- Full Google Calendar sync ↔ tasks bi-directional
+## Impersonation
+- POST `/api/v1/platform/impersonate {tenant_id, reason}` (super_admin+) → issues ephemeral JWT with `impersonating_from` + `original_tenant_id` claims.
+- POST `/api/v1/platform/impersonate/stop` → restores original identity.
+- Every start/stop written to `platform_audit` (`GET /api/v1/platform/audit`).
+- Frontend shows a black sticky banner across every page during impersonation with an "Exit impersonation" button.
+- Writes performed while impersonating go into the target tenant (correct scope); no data mutation on the platform_owner user.
+
+## Modules shipped (V1–V5)
+Dashboard · Clients + Client 360 (Timeline / Notes / Deals / Invoices) · Sales pipeline Kanban · Tasks (Kanban+list) · Projects · Finance (invoices/PDF + expenses + summary) · Products & Services · Employees + Team Invites · AI Assistant · Billing (Stripe subscriptions) · Google Calendar Sync (dormant scaffold) · Platform Admin (this iteration) · Settings.
+
+## Backlog
+- Object File Storage (drag-and-drop uploads on clients/projects)
+- Feature gating by plan
+- Excel report exports
 - WhatsApp integration (Twilio)
+- Full RBAC per-action across every module (currently baseline; deepen)
 
-## Backlog (P2 — future modules)
-- Inventory, POS, Restaurant orders, Marketing automation, Website builder, Customer Portal, Document Management, Accounting depth, Payroll depth, AI Automation, API Marketplace
+## Test state (iteration 5)
+- **24/24** platform-owner + role hierarchy + impersonation tests passing
+- **28/28** iteration-2 regression suite passing
+- **100% frontend** navigation suite passing (iteration 4)
 
-## Test state (2026-02)
-- Backend test suite: **28/28 passing** (`/app/backend/tests/test_iteration2.py`, iteration 3 report)
-- Key CRITICAL bug fixed this iteration: `register_module` was overwriting duplicate `code` entries — clients_router had been evicted by client_notes_router. Fix: mount client_notes_router directly from server.py; keep MODULES list unique per code.
+## Files added this iteration
+- `/app/backend/app/core/roles.py` — hierarchy + normalize + can_grant
+- `/app/backend/app/core/seed.py` — idempotent platform_owner bootstrap
+- `/app/backend/app/modules/platform/routes.py` — cross-tenant super-admin surface + impersonation + audit
+- `/app/frontend/src/pages/Platform.jsx` — Platform Admin panel (tenants / users / audit)
+- `/app/frontend/src/components/layout/ImpersonationBanner.jsx`
