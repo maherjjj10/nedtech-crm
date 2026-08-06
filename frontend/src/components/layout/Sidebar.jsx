@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, TrendingUp, ListChecks, FileText, Package, UserCog, Sparkles, Settings, LogOut, Sun, Moon, CreditCard, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, TrendingUp, ListChecks, FileText, Package, UserCog, Sparkles, Settings, LogOut, Sun, Moon, CreditCard, Menu, X, Shield } from "lucide-react";
 import { Button } from "../ui/button";
 import { useTheme } from "../../lib/themeContext";
 import { useAuth } from "../../lib/authContext";
@@ -25,6 +25,11 @@ function SidebarContent({ onNavigate }) {
   const { user, tenant, logout } = useAuth();
   const location = useLocation();
 
+  const isPlatformAdmin = user?.platform_role === "platform_owner" || user?.platform_role === "super_admin";
+  const navItems = isPlatformAdmin
+    ? [...NAV, { to: "/platform", label: "Platform Admin", icon: Shield, testid: "nav-platform" }]
+    : NAV;
+
   return (
     <>
       <div className="px-6 py-6 border-b border-border">
@@ -40,7 +45,7 @@ function SidebarContent({ onNavigate }) {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1 n-scroll overflow-y-auto">
-        {NAV.map((n) => {
+        {navItems.map((n) => {
           const Icon = n.icon;
           const active = n.end ? location.pathname === n.to : (location.pathname === n.to || location.pathname.startsWith(n.to + "/"));
           return (

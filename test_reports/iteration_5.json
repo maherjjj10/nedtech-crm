@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 5 backend validation of Platform Owner (maher@tapbyned.com), 6-tier role hierarchy, and cross-tenant impersonation. Wrote /app/backend/tests/test_platform_owner.py (24 tests) exercising seed idempotency, uniqueness, immutability guards, role-grant ceiling, /platform/* endpoints, impersonation re-scoping (JWT tenant_id swap, /clients returns TARGET tenant's data, audit log entry), impersonation isolation (write goes to target tenant; stop restores original; no data leak), and iteration-3 regression sanity (auth/me, clients CRUD, module toggle 403, billing plans, calendar dormant, dashboard, invoice PDF). 24/24 pass when run serially. NOTE: running with the repo default `-n 2 --dist loadscope` (pytest-xdist) causes intermittent Cloudflare 502s because TestSeed::test_idempotent_on_restart restarts the backend while parallel workers keep hammering the public URL — this is a test-harness concern, not a product bug. Recommend either isolating the restart test or documenting `-n 0` for this suite.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "test-harness", "issue": "test_idempotent_on_restart restarts backend during xdist parallel run → sibling workers see Cloudflare 502s. Fix by either (a) marking the restart test @pytest.mark.serial and using pytest-xdist grouping, or (b) health-polling after restart before releasing other workers."},
+      {"endpoint": "/api/v1/auth/register", "issue": "Legacy tenant role written as 'owner' at registration (see auth/routes.py:66). roles.py aliases 'owner'->'admin' for RBAC, but the raw DB value is 'owner'. Cosmetic inconsistency now that TENANT_ROLES = admin/manager/employee/viewer — consider persisting normalized 'admin' on register."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_platform_owner.py",
+    "/app/test_reports/pytest/iter5_results.xml"
+  ],
+  "action_items": [
+    "Optional: normalize register() to persist role='admin' (not legacy 'owner') to align with new TENANT_ROLES.",
+    "Optional: guard test_idempotent_on_restart against xdist parallel execution — the restart is disruptive under `-n 2`."
+  ],
+  "critical_code_review_comments": [
+    "platform/routes.py:91 set_role — the actor's tenant_role check uses user.role (which is CurrentUser.role, already normalized to 'viewer'/'admin' via deps.py:25). For a super_admin whose tenant_role is 'admin', effective_rank correctly clamps at 90. Verified via test_super_admin_cannot_grant_super_admin. OK.",
+    "seed.py — bootstrap password is UNCONDITIONALLY reset on every backend startup when PLATFORM_OWNER_BOOTSTRAP_PASSWORD is set (line 57-58). This is intentional per env-as-source-of-truth, but if the owner rotates their password via the UI later, the next restart would clobber it back to the env default. Consider making this env value 'first-boot only' or documenting the behaviour.",
+    "platform/routes.py:154 impersonate — no expiry override on the impersonation token. A platform owner impersonation token lives for the full JWT_EXPIRE_MINUTES (24h in .env). Recommend shorter TTL (e.g., 30 min) with explicit override in create_access_token payload for security/audit hygiene.",
+    "platform/routes.py:98 set_role guard checks target.get('protected') OR platform_role=='platform_owner' — good. But there is no equivalent guard in tenant-scoped user routes (I did not find any /users PATCH/DELETE outside /platform, so effectively OK, but worth an explicit test if such routes are added later).",
+    "platform/routes.py:33 _audit calls new_id() twice — once for _id and once for id — so the two are different UUIDs. Not a functional bug (each is unique) but cosmetically wrong; use a single new_id() variable."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (24/24) serial", "frontend": "N/A (skipped)"},
+  "test_credentials": "Platform Owner: maher@tapbyned.com / NedTechOwner2026!  |  Regular: owner@nedtech.media / Password123!",
+  "seed_data_creation": "Test file registers ephemeral tenant_b workspaces (email tb_<hex>@nedtech.example.com). Creates TEST_-prefixed clients under impersonation to verify tenant re-scoping.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend platform-owner + impersonation feature is fully green (24/24). Run the suite with `python -m pytest backend/tests/test_platform_owner.py -n 0` — parallel xdist causes 502s during the seed-restart test. Iteration-3 regression path also passes here (clients CRUD, module toggle, billing/plans, calendar dormant, dashboard, invoice PDF). If you extend the suite, prefer adding new tests under this same file or add serial marker for anything that restarts the backend.",
+  "rca of the issue": "N/A — no product bug found. The only failure mode observed (intermittent Cloudflare 502 under `-n 2`) is caused by test_idempotent_on_restart restarting the backend supervisor process while xdist worker gw1 is mid-request against the public URL. Confirmed by re-running with `-n 0`: 24/24 pass consistently."
+}

@@ -78,11 +78,18 @@ def _serialize(doc: dict) -> dict:
     return d
 
 
-def _token_for(user: dict) -> str:
-    return create_access_token({
-        "sub": user["id"], "tenant_id": user["tenant_id"],
-        "email": user["email"], "role": user.get("role", "member"),
-    })
+def _token_for(user: dict, impersonating_from: str | None = None, original_tenant_id: str | None = None) -> str:
+    payload = {
+        "sub": user["id"],
+        "tenant_id": user["tenant_id"],
+        "email": user["email"],
+        "role": user.get("role", "member"),
+        "platform_role": user.get("platform_role"),
+    }
+    if impersonating_from:
+        payload["impersonating_from"] = impersonating_from
+        payload["original_tenant_id"] = original_tenant_id
+    return create_access_token(payload)
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -113,7 +120,12 @@ async def me(user: UserDep):
     t = await db.tenants.find_one({"id": user.tenant_id})
     if not u or not t:
         raise HTTPException(404, "User or tenant not found")
-    return {"user": _serialize(u), "tenant": _serialize(t)}
+    payload = {"user": _serialize(u), "tenant": _serialize(t)}
+    # Surface impersonation context so the frontend can show the banner
+    if user.is_impersonating:
+        payload["user"]["impersonating_from"] = user.impersonating_from
+        payload["user"]["original_tenant_id"] = user.original_tenant_id
+    return payload
 
 
 # ---------- Google OAuth (works when GOOGLE_CLIENT_ID/SECRET are configured) ----------

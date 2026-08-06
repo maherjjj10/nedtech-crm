@@ -15,8 +15,10 @@ import logging
 from app.core.config import settings
 from app.core.database import close_db, ensure_indexes
 from app.core.module_registry import list_modules
+from app.core.seed import seed_platform_owner
 from app.modules.registry import SYSTEM_ROUTERS, MODULES  # noqa: F401  (side-effect: registers modules)
 from app.modules.billing.webhook import webhook_router as stripe_webhook_router
+from app.modules.platform.routes import router as platform_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("nedtech")
@@ -25,6 +27,7 @@ logger = logging.getLogger("nedtech")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await ensure_indexes()
+    await seed_platform_owner()
     logger.info("NED Tech CRM ready.")
     yield
     await close_db()
@@ -63,6 +66,9 @@ for m in list_modules():
 # alongside (not through) the registry.
 from app.modules.client_notes.routes import router as _client_notes_router  # noqa: E402
 api_v1.include_router(_client_notes_router)
+
+# Platform admin (cross-tenant super-admin surface)
+api_v1.include_router(platform_router)
 
 
 @api_v1.get("/health", tags=["System"])

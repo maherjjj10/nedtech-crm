@@ -19,6 +19,7 @@ import AIAssistant from "./pages/AIAssistant";
 import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
 import BillingSuccess from "./pages/BillingSuccess";
+import Platform from "./pages/Platform";
 
 function Guard({ children }) {
   const { user, loading } = useAuth();
@@ -51,6 +52,7 @@ function App() {
               <Route path="/employees" element={<Employees />} />
               <Route path="/ai" element={<AIAssistant />} />
               <Route path="/billing" element={<Billing />} />
+              <Route path="/platform" element={<Platform />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
 
