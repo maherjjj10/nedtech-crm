@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, TrendingUp, ListChecks, FileText, Package, UserCog, Sparkles, Settings, LogOut, Sun, Moon, CreditCard } from "lucide-react";
+import { LayoutDashboard, Users, TrendingUp, ListChecks, FileText, Package, UserCog, Sparkles, Settings, LogOut, Sun, Moon, CreditCard, Menu, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { useTheme } from "../../lib/themeContext";
 import { useAuth } from "../../lib/authContext";
@@ -7,25 +8,25 @@ import { Avatar, AvatarFallback } from "../ui/avatar";
 import { initials } from "../../lib/format";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard", end: true },
   { to: "/clients", label: "Clients", icon: Users, testid: "nav-clients" },
-  { to: "/pipeline", label: "Pipeline", icon: TrendingUp, testid: "nav-pipeline" },
+  { to: "/pipeline", label: "Sales Pipeline", icon: TrendingUp, testid: "nav-pipeline" },
   { to: "/tasks", label: "Tasks", icon: ListChecks, testid: "nav-tasks" },
   { to: "/finance", label: "Finance", icon: FileText, testid: "nav-finance" },
-  { to: "/products", label: "Products", icon: Package, testid: "nav-products" },
-  { to: "/employees", label: "Team", icon: UserCog, testid: "nav-employees" },
+  { to: "/products", label: "Products & Services", icon: Package, testid: "nav-products" },
+  { to: "/employees", label: "Employees", icon: UserCog, testid: "nav-employees" },
   { to: "/ai", label: "AI Assistant", icon: Sparkles, testid: "nav-ai" },
   { to: "/billing", label: "Billing", icon: CreditCard, testid: "nav-billing" },
   { to: "/settings", label: "Settings", icon: Settings, testid: "nav-settings" },
 ];
 
-export default function Sidebar() {
+function SidebarContent({ onNavigate }) {
   const { theme, toggle } = useTheme();
   const { user, tenant, logout } = useAuth();
   const location = useLocation();
 
   return (
-    <aside className="hidden md:flex flex-col w-64 shrink-0 border-r border-border bg-card">
+    <>
       <div className="px-6 py-6 border-b border-border">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-md bg-foreground text-background flex items-center justify-center font-black" data-testid="brand-mark">
@@ -41,11 +42,12 @@ export default function Sidebar() {
       <nav className="flex-1 px-3 py-4 space-y-1 n-scroll overflow-y-auto">
         {NAV.map((n) => {
           const Icon = n.icon;
-          const active = location.pathname === n.to || (n.to !== "/" && location.pathname.startsWith(n.to));
+          const active = n.end ? location.pathname === n.to : (location.pathname === n.to || location.pathname.startsWith(n.to + "/"));
           return (
             <NavLink
               key={n.to}
               to={n.to}
+              onClick={onNavigate}
               data-testid={n.testid}
               className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors duration-150 ${
                 active
@@ -80,6 +82,45 @@ export default function Sidebar() {
           </Button>
         </div>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export default function Sidebar() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      {/* Mobile top bar with hamburger */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 h-14 border-b border-border bg-background">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-md bg-foreground text-background flex items-center justify-center font-black text-sm">N</div>
+          <div className="text-sm font-semibold">NED Tech CRM</div>
+        </div>
+        <Button variant="ghost" size="icon" onClick={() => setOpen(true)} data-testid="mobile-menu-btn">
+          <Menu className="h-5 w-5" />
+        </Button>
+      </div>
+
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex flex-col w-64 shrink-0 border-r border-border bg-card" data-testid="app-sidebar">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile drawer */}
+      {open && (
+        <>
+          <div className="md:hidden fixed inset-0 z-50 bg-black/60" onClick={() => setOpen(false)} />
+          <aside className="md:hidden fixed inset-y-0 left-0 z-50 flex flex-col w-72 border-r border-border bg-card animate-in slide-in-from-left duration-200" data-testid="mobile-sidebar">
+            <div className="flex justify-end p-2">
+              <Button variant="ghost" size="icon" onClick={() => setOpen(false)} data-testid="mobile-close-btn">
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <SidebarContent onNavigate={() => setOpen(false)} />
+          </aside>
+        </>
+      )}
+    </>
   );
 }
