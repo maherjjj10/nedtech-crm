@@ -40,12 +40,23 @@ Dashboard · Clients + Client 360 (Timeline / Notes / Deals / Invoices) · Sales
 - WhatsApp integration (Twilio)
 - Full RBAC per-action across every module (currently baseline; deepen)
 
-## Test state (iteration 6)
-- **37/37 backend** passing (13 new iter6 + 24 iter5 regression)
+## Test state (iteration 10)
+- **15/16 backend** passing on iter10; the one guard-order failure (convert-twice returned 400) has been fixed → now returns 409.
+- Frontend E2E for both Quote Flow and Contracts passes end-to-end (login → create → share/send → public accept/sign → convert → invoice appears).
 - Password self-service verified across backend restart
 - Global search across tenants/users/invoices/clients
 - 30-min impersonation TTL verified via JWT `exp - iat`
 - super_admin grant permission ceiling enforced
+
+## Iteration 10 — Quote Flow + Contracts (frontend wiring & bugfixes)
+- Wired `/contracts`, `/public/quote/:token`, `/public/contract/:token` into `App.js`.
+- Added **Contracts** link to Sidebar (`data-testid="nav-contracts"`).
+- Added **Quotes tab** to `/finance` with New/Share/Convert/Copy/Delete actions and full line-item editor (all rows have data-testids `line-desc-N`, `line-qty-N`, …).
+- Backend fixes in `quote_flow/routes.py`:
+  - `POST /quotes/{qid}/share` now returns **409** if quote is already accepted/rejected/converted (no more silent status regression).
+  - `POST /quotes/{qid}/convert` reorders guards so a second call returns **409** ("Already converted") instead of 400. Also now returns **201 Created**.
+  - Added `GET /quotes/{qid}` for parity with invoices.
+- All fixes curl-verified.
 
 ## Files added this iteration
 - `/app/backend/app/core/roles.py` — hierarchy + normalize + can_grant

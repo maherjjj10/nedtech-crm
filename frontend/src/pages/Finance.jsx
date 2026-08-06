@@ -29,15 +29,15 @@ function LineItemsEditor({ items, onChange, currency }) {
       <div className="space-y-2">
         <div className="n-overline">Line items</div>
         {items.map((it, idx) => (
-          <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-            <Input className="col-span-5" placeholder="Description" value={it.description} onChange={(e)=>up(idx,'description',e.target.value)} required />
-            <Input className="col-span-2" type="number" placeholder="Qty" value={it.quantity} onChange={(e)=>up(idx,'quantity',e.target.value)} />
-            <Input className="col-span-2" type="number" placeholder="Price" value={it.unit_price} onChange={(e)=>up(idx,'unit_price',e.target.value)} />
-            <Input className="col-span-2" type="number" placeholder="Tax %" value={it.tax_rate} onChange={(e)=>up(idx,'tax_rate',e.target.value)} />
-            <Button type="button" variant="ghost" size="icon" onClick={()=>rm(idx)} className="col-span-1"><Trash2 className="h-4 w-4" /></Button>
+          <div key={idx} className="grid grid-cols-12 gap-2 items-center" data-testid={`line-item-row-${idx}`}>
+            <Input className="col-span-5" placeholder="Description" value={it.description} onChange={(e)=>up(idx,'description',e.target.value)} required data-testid={`line-desc-${idx}`} />
+            <Input className="col-span-2" type="number" placeholder="Qty" value={it.quantity} onChange={(e)=>up(idx,'quantity',e.target.value)} data-testid={`line-qty-${idx}`} />
+            <Input className="col-span-2" type="number" placeholder="Price" value={it.unit_price} onChange={(e)=>up(idx,'unit_price',e.target.value)} data-testid={`line-price-${idx}`} />
+            <Input className="col-span-2" type="number" placeholder="Tax %" value={it.tax_rate} onChange={(e)=>up(idx,'tax_rate',e.target.value)} data-testid={`line-tax-${idx}`} />
+            <Button type="button" variant="ghost" size="icon" onClick={()=>rm(idx)} className="col-span-1" data-testid={`line-remove-${idx}`}><Trash2 className="h-4 w-4" /></Button>
           </div>
         ))}
-        <Button type="button" variant="outline" size="sm" onClick={add}><Plus className="h-3 w-3 mr-1" />Add row</Button>
+        <Button type="button" variant="outline" size="sm" onClick={add} data-testid="line-add-row"><Plus className="h-3 w-3 mr-1" />Add row</Button>
       </div>
       <div className="text-right space-y-0.5 border-t border-border pt-3">
         <div className="text-sm">Subtotal: <span className="font-medium">{formatCurrency(subtotal, currency)}</span></div>
@@ -189,7 +189,7 @@ export default function Finance() {
         </div>
 
         <Tabs defaultValue="invoices">
-          <TabsList data-testid="finance-tabs"><TabsTrigger value="invoices">Invoices</TabsTrigger><TabsTrigger value="quotes" data-testid="tab-quotes">Quotes</TabsTrigger><TabsTrigger value="expenses">Expenses</TabsTrigger></TabsList>
+          <TabsList data-testid="finance-tabs"><TabsTrigger value="invoices" data-testid="tab-invoices">Invoices</TabsTrigger><TabsTrigger value="quotes" data-testid="tab-quotes">Quotes</TabsTrigger><TabsTrigger value="expenses" data-testid="tab-expenses">Expenses</TabsTrigger></TabsList>
 
           <TabsContent value="invoices" className="mt-6">
             <div className="flex justify-end mb-3">

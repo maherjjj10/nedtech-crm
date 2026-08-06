@@ -44,6 +44,8 @@ async def share_quote(qid: str, user: UserDep):
     q = await db.quotes.find_one({"tenant_id": user.tenant_id, "id": qid})
     if not q:
         raise HTTPException(404, "Quote not found")
+    if q.get("status") in ("accepted", "rejected", "converted"):
+        raise HTTPException(409, f"Cannot share a quote that is already {q['status']}")
     token = q.get("share_token") or secrets.token_urlsafe(24)
     await db.quotes.update_one(
         {"tenant_id": user.tenant_id, "id": qid},
@@ -51,6 +53,16 @@ async def share_quote(qid: str, user: UserDep):
     )
     base = os.environ.get("FRONTEND_URL", "").rstrip("/")
     return {"share_token": token, "public_url": f"{base}/public/quote/{token}"}
+
+
+@router.get("/{qid}")
+async def get_quote(qid: str, user: UserDep):
+    db = get_db()
+    q = await db.quotes.find_one({"tenant_id": user.tenant_id, "id": qid}, {"_id": 0})
+    if not q:
+        raise HTTPException(404, "Quote not found")
+    q["totals"] = _totals(q.get("items", []))
+    return q
 
 
 @public_router.get("/{token}")
@@ -95,16 +107,16 @@ async def public_decide(token: str, body: DecisionIn):
     return {"ok": True, "status": body.decision}
 
 
-@router.post("/{qid}/convert")
+@router.post("/{qid}/convert", status_code=201)
 async def convert_quote_to_invoice(qid: str, body: ConvertRequest, user: UserDep):
     db = get_db()
     q = await db.quotes.find_one({"tenant_id": user.tenant_id, "id": qid}, {"_id": 0})
     if not q:
         raise HTTPException(404, "Quote not found")
-    if q.get("status") not in ("accepted",):
-        raise HTTPException(400, "Only accepted quotes can be converted")
-    if q.get("converted_invoice_id"):
+    if q.get("converted_invoice_id") or q.get("status") == "converted":
         raise HTTPException(409, "Already converted")
+    if q.get("status") != "accepted":
+        raise HTTPException(400, "Only accepted quotes can be converted")
 
     inv_count = await db.invoices.count_documents({"tenant_id": user.tenant_id})
     inv_id = new_id()
