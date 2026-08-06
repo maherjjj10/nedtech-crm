@@ -1,0 +1,128 @@
+{
+  "theme_strategy": "hybrid_fullstack (enterprise SaaS dashboard)",
+  "vibe": "Premium SaaS, Linear/Stripe/HubSpot inspired. High contrast, highly functional, beautiful micro-interactions, dark & light mode.",
+  "typography": {
+    "banned_fonts": [
+      "Inter",
+      "Roboto",
+      "Open Sans",
+      "Lato",
+      "Space Grotesk"
+    ],
+    "heading_font": "Cabinet Grotesk, sans-serif",
+    "body_font": "Satoshi, sans-serif",
+    "hierarchy": {
+      "H1_Hero": "text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-none font-black",
+      "H2_Section": "text-2xl sm:text-3xl lg:text-4xl tracking-tight leading-tight",
+      "H3_Subsection": "text-xl sm:text-2xl font-medium tracking-tight",
+      "H4_Card": "text-lg sm:text-xl font-medium",
+      "Body": "text-base leading-relaxed",
+      "Small_Labels": "text-sm text-muted-foreground uppercase tracking-[0.2em]"
+    },
+    "rules": [
+      "Use 'tracking-tight' for all headings over 32px.",
+      "Use 'tracking-[0.2em]' and uppercase for tiny labels/overlines.",
+      "Never center text by default. Left-align paragraphs, inputs, labels, and dense content."
+    ]
+  },
+  "colors": {
+    "archetype": "Swiss & High-Contrast",
+    "forbidden_colors": [
+      "#1B93A4",
+      "#7351B7"
+    ],
+    "light_mode": {
+      "base_bg": "#FDFDFD",
+      "surface_card": "#FFFFFF",
+      "primary_accent": "#171717",
+      "text_main": "#0A0A0A",
+      "text_muted": "#666666",
+      "border_subtle": "#E5E5E5"
+    },
+    "dark_mode": {
+      "base_bg": "#0A0A0A",
+      "surface_card": "#121212",
+      "primary_accent": "#FFFFFF",
+      "text_main": "#FDFDFD",
+      "text_muted": "#A1A1A1",
+      "border_subtle": "#262626"
+    },
+    "rules": [
+      "Color is Function Only. 95% of the UI should be monochrome. Color exists only to guide action.",
+      "Tint neutral greys slightly with blue (cool) or orange (warm) to make them feel alive.",
+      "Never use pure transparent backgrounds for headers, dropdowns, or overlays. ALWAYS use a solid color or heavy backdrop blur."
+    ]
+  },
+  "visual_enhancers": {
+    "surfaces": "Grid Borders and Flat Solid structures. 1px subtle borders (border-border/40) for dashboard cards and data tables. Never rely purely on shadows for separation.",
+    "radius": "Subtle roundness. Max 8px border-radius (rounded-md to rounded-lg). Nested radii must be smaller than parent.",
+    "shadows": "Minimalist. Use layered, crisp shadows. No muddy generic shadows.",
+    "glassmorphism": "Only for sticky headers/floating navs. Must use heavy blur (backdrop-blur-xl) + high opacity background (bg-white/70 or bg-black/60) + 1px delicate inner stroke."
+  },
+  "grids": {
+    "dashboard_mode": "High Density Grid",
+    "base_grid": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4",
+    "gap": "Tight spacing (gap-4 or gap-6)",
+    "rules": [
+      "Override default stretch behavior with align-items: start where necessary.",
+      "Ensure grid children are direct children. No wrapper divs that break grid structure."
+    ]
+  },
+  "layouts": {
+    "spacing_scale": "p-1, p-2, p-4, p-6, p-8, p-12, p-16. Use generous spacing (2-3x typical AI padding).",
+    "cards": "Containers with borders must have internal padding (p-6 or p-8) to prevent text collision.",
+    "alignment": "Optical alignment over geometrical. Left-align lists, tabular data, and forms.",
+    "navigation": "Sidebar layout for dashboards (w-64 to w-72). Must have visible navigation on desktop, never hidden behind a hamburger."
+  },
+  "motion": {
+    "micro_animations": "Hover states (translate-y-[-2px]), crisp focus rings, active press scales (scale-95).",
+    "transitions": "Use specific properties (transition-transform, transition-opacity, transition-colors duration-200 ease-out).",
+    "banned": "NEVER use 'transition: all'. This breaks transforms."
+  },
+  "components": {
+    "strategy": "Shadcn UI for tables, calendars, dropdowns, dialogs, tabs. Customize radius and borders for a sharp, Linear-esque feel.",
+    "forms": "Use Shadcn Input, Select, Checkbox. NO native html inputs.",
+    "charts": "Use Recharts or Shadcn Chart components for dashboard metrics.",
+    "icons": "lucide-react or @phosphor-icons/react. Do not use AI emojis.",
+    "toasts": "Use 'sonner' for toasts. Component located at /app/frontend/src/components/ui/sonner.jsx"
+  },
+  "accessibility": {
+    "contrast": "Minimum 4.5:1 for text below 18px. Minimum 3:1 for large text and interactive elements.",
+    "focus_states": "Must have higher contrast than default state (e.g., focus:ring-2 focus:ring-primary/50).",
+    "testing": "All interactive and key informational elements MUST include a 'data-testid' attribute (kebab-case, role-based). Example: data-testid='login-form-submit-button'."
+  },
+  "media": {
+    "constraints": "Images MUST NOT exceed 80vh on mobile devices.",
+    "image_urls": {
+      "user_avatar_1": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHByb2ZpbGV8ZW58MHx8fHwxNzg2MDA0ODQ0fDA&ixlib=rb-4.1.0&q=85",
+      "user_avatar_2": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHByb2ZpbGV8ZW58MHx8fHwxNzg2MDA0ODQ0fDA&ixlib=rb-4.1.0&q=85",
+      "abstract_tech_bg": "https://images.pexels.com/photos/8998295/pexels-photo-8998295.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    }
+  },
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. Make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur) combined with semi-transparent solid backgrounds.",
+    "You MUST NOT apply universal transition. Eg: transition: all. Always add transitions for specific interactive elements like button, input excluding transforms.",
+    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
+    "NEVER use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 for icons. Use lucide-react or phosphor icons.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Prioritize using pre-existing components from src/components/ui when applicable.",
+    "Use 'sonner' for toasts. Sonner component are located in /app/frontend/src/components/ui/sonner.jsx"
+  ],
+  "instructions_to_main_agent": [
+    "1. This is a React project using .js/.jsx files (NOT TypeScript/.tsx). Configure all Shadcn components and logic accordingly.",
+    "2. Integrate 'Cabinet Grotesk' and 'Satoshi' fonts in your global CSS or Tailwind config.",
+    "3. Set up the Tailwind configuration with the defined Swiss & High-Contrast color palette (base, surface, accent, text).",
+    "4. Build the modular layout: A persistent left sidebar (w-64) containing navigation links for Dashboard, CRM, Sales, Finance, HR, AI Assistant, etc.",
+    "5. Ensure the header contains a multi-tenant workspace switcher, a dark/light mode toggle, and the user's profile avatar.",
+    "6. Build the Dashboard view first: high-density grid for KPI cards (revenue, expenses, active clients), followed by charting components (Recharts) and an activity feed.",
+    "7. Construct the Client Management and Sales Pipeline (Kanban board) using Shadcn components.",
+    "8. Implement robust 'data-testid' attributes on ALL interactive elements (buttons, inputs, tabs, dropdowns, links).",
+    "9. Never use native HTML elements for complex inputs (use Shadcn Select, Dialog, Calendar).",
+    "10. Verify dark and light mode contrasts thoroughly to ensure premium enterprise readability."
+  ]
+}
