@@ -15,12 +15,13 @@ from app.modules.ai.routes import router as ai_router
 from app.modules.invites.routes import router as invites_router
 from app.modules.billing.routes import router as billing_router
 from app.modules.calendar.routes import router as calendar_router
+from app.modules.profile.routes import router as profile_router
 
 
 # System modules (always enabled — not user-toggleable)
 SYSTEM_ROUTERS = [
     auth_router, tenants_router, dashboard_router,
-    invites_router, billing_router,
+    invites_router, billing_router, profile_router,
 ]
 
 # Toggleable modules

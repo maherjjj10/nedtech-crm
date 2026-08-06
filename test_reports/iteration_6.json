@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 6 backend validation: profile update, self-service change-password (with backend restart persistence via password_manually_set flag), global /platform/search, 30-minute impersonation TTL (JWT exp-iat verified), and grant/revoke super_admin with permission ceiling. Wrote /app/backend/tests/test_iter6.py — 13/13 passing. Also re-ran the iter5 suite /app/backend/tests/test_platform_owner.py — 24/24 passing. Final owner password reset to NedTechOwner2026! and verified with a fresh login (HTTP 200).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/v1/profile/change-password", "issue": "422 is emitted for new_password<8 (Pydantic min_length). Fine, but the response body is the default FastAPI validation envelope. Consider a friendlier error message consistent with other 400s in this router."},
+      {"endpoint": "/api/v1/platform/impersonate", "issue": "Response body carries expires_in_minutes=30 but the JWT payload does not include a machine-readable 'impersonation' claim (only 'impersonating_from'). The 30-minute TTL is enforced only via exp; consider adding a dedicated claim if future policy needs to distinguish impersonation from regular tokens beyond impersonating_from presence."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter6.py",
+    "/app/test_reports/pytest/iter6_results.xml",
+    "/app/test_reports/pytest/iter6_regression_iter5.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "profile/routes.py:26 update_profile — patch dict filters None so callers can't null-out fields (e.g., clear phone). If clearing is a product need, allow explicit empty string. Minor.",
+    "profile/routes.py:34 change-password — password_manually_set flag is written only via /profile/change-password. If an admin ever resets a password directly in Mongo or via a future admin route, the seed will re-clobber it on next restart. Consider also setting password_manually_set=True in any future admin-reset flow.",
+    "platform/routes.py:112 set_role — 'Only platform_owner may grant super_admin' is enforced. Verified via test_super_admin_cannot_grant_super_admin. Note: platform_role='' is treated as clear (patch['platform_role']=None). This is fine but not documented in the RoleUpdate schema; consider a literal type for clarity.",
+    "platform/routes.py:169 impersonate — expires_in_minutes=30 is hard-coded. Consider making it configurable via env (IMPERSONATION_TTL_MINUTES) for ops flexibility.",
+    "security.py:22 create_access_token — new expires_in_minutes param is clean and correctly falls back to settings.JWT_EXPIRE_MINUTES. Good."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter6.py"],
+  "success_rate": {"backend": "100% (13/13 iter6 + 24/24 iter5 regression = 37/37)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "Platform Owner: maher@tapbyned.com / NedTechOwner2026! (verified reset at end of run). Regular: owner@nedtech.media / Password123!",
+  "seed_data_creation": "Test suite creates ephemeral tenant_b workspaces (tb6_<hex>@nedtech.example.com). No cleanup needed — throwaway tenants.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter6 backend is fully green. Run both files serially: `python -m pytest backend/tests/test_iter6.py backend/tests/test_platform_owner.py -n 0`. Both restart backend during their password-persistence / seed-idempotency tests — don't run under xdist parallelism (causes Cloudflare 502s on sibling workers). Owner password is guaranteed reset to NedTechOwner2026! at end of iter6 run. If you extend, note that password_manually_set flag persists across restarts, so a fresh env-based bootstrap password reset now requires manually clearing that flag in Mongo.",
+  "rca of the issue": "N/A — no product bugs. All iter6 acceptance criteria satisfied: (1) PATCH /profile/me returns updated user w/o password_hash; (2) change-password flow works, survives supervisorctl restart backend (seed respects password_manually_set); wrong current -> 401, short new -> 422, same password -> 400; (3) /platform/search returns 4 arrays for q>=2 chars, all-empty for shorter, 403 for non-platform users; (4) impersonation JWT exp-iat ≈ 1800s (verified via pyjwt decode); (5) platform_owner can grant/revoke super_admin, a super_admin cannot grant super_admin (403 'Only platform_owner may grant super_admin')."
+}

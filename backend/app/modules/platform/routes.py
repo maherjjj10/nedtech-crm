@@ -172,12 +172,12 @@ async def impersonate(body: ImpersonateIn, user: CurrentUser = Depends(require_p
         "platform_role": ephemeral["platform_role"],
         "impersonating_from": user.user_id,
         "original_tenant_id": original_user["tenant_id"],
-    })
+    }, expires_in_minutes=30)
     await _audit("impersonation.start", user, target_tenant=body.tenant_id,
-                 meta={"tenant_name": tenant.get("name"), "reason": body.reason})
+                 meta={"tenant_name": tenant.get("name"), "reason": body.reason, "ttl_minutes": 30})
     return {"access_token": token, "token_type": "bearer",
-            "tenant": tenant,
-            "note": "All actions taken while impersonating are logged with your original identity."}
+            "tenant": tenant, "expires_in_minutes": 30,
+            "note": "All actions taken while impersonating are logged with your original identity. This session expires in 30 minutes."}
 
 
 @router.post("/impersonate/stop")
@@ -198,6 +198,40 @@ async def stop_impersonation(user: UserDep):
     return {"access_token": token, "token_type": "bearer",
             "user": {k: v for k, v in original.items() if k not in ("_id", "password_hash")},
             "tenant": tenant}
+
+
+# --------------------------- GLOBAL SEARCH ---------------------
+
+@router.get("/search", dependencies=[_gate])
+async def global_search(q: str, limit: int = 20):
+    """Search across every tenant: tenants, users, invoices, clients."""
+    if not q or len(q) < 2:
+        return {"tenants": [], "users": [], "invoices": [], "clients": []}
+    db = get_db()
+    rx = {"$regex": q, "$options": "i"}
+
+    tenants = await db.tenants.find(
+        {"$or": [{"name": rx}, {"slug": rx}, {"id": q}]}, {"_id": 0}
+    ).limit(limit).to_list(length=limit)
+
+    users_cur = await db.users.find(
+        {"$or": [{"email": rx}, {"name": rx}]}, {"_id": 0, "password_hash": 0}
+    ).limit(limit).to_list(length=limit)
+
+    invoices = await db.invoices.find(
+        {"$or": [{"number": rx}, {"client_name": rx}]}, {"_id": 0}
+    ).limit(limit).to_list(length=limit)
+    # Attach total per invoice (client-side compute already done elsewhere)
+    for inv in invoices:
+        total = sum(i.get("quantity", 0) * i.get("unit_price", 0) * (1 + i.get("tax_rate", 0) / 100)
+                    for i in inv.get("items", []))
+        inv["amount"] = round(total, 2)
+
+    clients = await db.clients.find(
+        {"$or": [{"name": rx}, {"email": rx}, {"company": rx}]}, {"_id": 0}
+    ).limit(limit).to_list(length=limit)
+
+    return {"tenants": tenants, "users": users_cur, "invoices": invoices, "clients": clients}
 
 
 # --------------------------- AUDIT LOG -------------------------

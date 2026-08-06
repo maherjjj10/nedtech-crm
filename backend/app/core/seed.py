@@ -51,10 +51,10 @@ async def seed_platform_owner() -> None:
             "protected": True,
             "updated_at": utcnow_iso(),
         }
-        # Ensure the env-configured bootstrap password matches. This makes the env
-        # variable the source of truth for platform owner access and guarantees
-        # the user can always log in with the credential the app displayed.
-        if bootstrap_pw:
+        # Only seed the bootstrap password on FIRST bootstrap. Once the owner has
+        # rotated their password via /profile/change-password, the seed must not
+        # clobber it — env is the source of truth for the initial credential only.
+        if bootstrap_pw and not existing.get("password_manually_set"):
             patch["password_hash"] = hash_password(bootstrap_pw)
         await db.users.update_one({"id": existing["id"]}, {"$set": patch})
         logger.info("Platform owner promoted: %s", email)

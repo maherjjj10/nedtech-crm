@@ -19,12 +19,13 @@ def verify_password(password: str, hashed: str) -> bool:
         return False
 
 
-def create_access_token(payload: dict[str, Any]) -> str:
+def create_access_token(payload: dict[str, Any], expires_in_minutes: int | None = None) -> str:
     now = datetime.now(timezone.utc)
+    minutes = expires_in_minutes if expires_in_minutes is not None else settings.JWT_EXPIRE_MINUTES
     body = {
         **payload,
         "iat": now,
-        "exp": now + timedelta(minutes=settings.JWT_EXPIRE_MINUTES),
+        "exp": now + timedelta(minutes=minutes),
         "iss": "nedtech-crm",
     }
     return jwt.encode(body, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
