@@ -40,10 +40,12 @@ Dashboard · Clients + Client 360 (Timeline / Notes / Deals / Invoices) · Sales
 - WhatsApp integration (Twilio)
 - Full RBAC per-action across every module (currently baseline; deepen)
 
-## Test state (iteration 5)
-- **24/24** platform-owner + role hierarchy + impersonation tests passing
-- **28/28** iteration-2 regression suite passing
-- **100% frontend** navigation suite passing (iteration 4)
+## Test state (iteration 6)
+- **37/37 backend** passing (13 new iter6 + 24 iter5 regression)
+- Password self-service verified across backend restart
+- Global search across tenants/users/invoices/clients
+- 30-min impersonation TTL verified via JWT `exp - iat`
+- super_admin grant permission ceiling enforced
 
 ## Files added this iteration
 - `/app/backend/app/core/roles.py` — hierarchy + normalize + can_grant
