@@ -86,6 +86,10 @@ export default function Login() {
           )}
 
           <div className="text-sm text-center text-muted-foreground">
+            <Link to="/auth/forgot-password" className="underline text-foreground" data-testid="link-forgot">Forgot password?</Link>
+          </div>
+
+          <div className="text-sm text-center text-muted-foreground">
             Don&apos;t have an account?{" "}
             <Link to="/auth/register" className="underline text-foreground" data-testid="link-register">Create workspace</Link>
           </div>

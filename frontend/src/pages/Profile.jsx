@@ -10,8 +10,15 @@ import { Avatar, AvatarFallback } from "../components/ui/avatar";
 import { api } from "../lib/apiClient";
 import { toast } from "sonner";
 import { useAuth } from "../lib/authContext";
-import { initials } from "../lib/format";
-import { Shield } from "lucide-react";
+import { initials, formatDate } from "../lib/format";
+import { Shield, Monitor, Smartphone, Tablet, Trash2, LogOut } from "lucide-react";
+
+function DeviceIcon({ device }) {
+  if (!device) return <Monitor className="h-4 w-4" />;
+  if (device.includes("Mobile")) return <Smartphone className="h-4 w-4" />;
+  if (device.includes("Tablet")) return <Tablet className="h-4 w-4" />;
+  return <Monitor className="h-4 w-4" />;
+}
 
 export default function Profile() {
   const { user, refresh } = useAuth();
@@ -19,10 +26,17 @@ export default function Profile() {
   const [pw, setPw] = useState({ current_password: "", new_password: "", confirm: "" });
   const [savingDetails, setSavingDetails] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
+  const [sessions, setSessions] = useState([]);
 
   useEffect(() => {
     if (user) setDetails({ name: user.name || "", phone: user.phone || "", avatar_url: user.avatar_url || "" });
   }, [user]);
+
+  const loadSessions = async () => {
+    try { const { data } = await api.get("/profile/sessions"); setSessions(data); }
+    catch { /* ignore */ }
+  };
+  useEffect(() => { loadSessions(); }, []);
 
   const saveDetails = async (e) => {
     e.preventDefault();
@@ -31,9 +45,8 @@ export default function Profile() {
       await api.patch("/profile/me", details);
       await refresh();
       toast.success("Profile updated");
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || "Failed");
-    } finally { setSavingDetails(false); }
+    } catch (err) { toast.error(err?.response?.data?.detail || "Failed"); }
+    finally { setSavingDetails(false); }
   };
 
   const changePw = async (e) => {
@@ -45,14 +58,27 @@ export default function Profile() {
       await api.post("/profile/change-password", { current_password: pw.current_password, new_password: pw.new_password });
       setPw({ current_password: "", new_password: "", confirm: "" });
       toast.success("Password changed");
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || "Failed");
-    } finally { setSavingPw(false); }
+    } catch (err) { toast.error(err?.response?.data?.detail || "Failed"); }
+    finally { setSavingPw(false); }
+  };
+
+  const revokeSession = async (sid) => {
+    if (!window.confirm("Sign this device out?")) return;
+    await api.delete(`/profile/sessions/${sid}`);
+    toast.success("Session revoked");
+    loadSessions();
+  };
+
+  const revokeOthers = async () => {
+    if (!window.confirm("Sign out all other devices?")) return;
+    const { data } = await api.post("/profile/sessions/revoke-others");
+    toast.success(`Signed out ${data.revoked} other session${data.revoked === 1 ? "" : "s"}`);
+    loadSessions();
   };
 
   return (
     <>
-      <PageHeader title="Your profile" description="Manage your account details and password." />
+      <PageHeader title="Your profile" description="Manage your account details, password, and active sessions." />
       <div className="p-8 max-w-3xl space-y-6">
         <Card className="p-6 border-border/70">
           <div className="flex items-center gap-4">
@@ -70,7 +96,11 @@ export default function Profile() {
         </Card>
 
         <Tabs defaultValue="details">
-          <TabsList><TabsTrigger value="details" data-testid="profile-tab-details">Details</TabsTrigger><TabsTrigger value="password" data-testid="profile-tab-password">Password</TabsTrigger></TabsList>
+          <TabsList>
+            <TabsTrigger value="details" data-testid="profile-tab-details">Details</TabsTrigger>
+            <TabsTrigger value="password" data-testid="profile-tab-password">Password</TabsTrigger>
+            <TabsTrigger value="sessions" data-testid="profile-tab-sessions">Sessions ({sessions.length})</TabsTrigger>
+          </TabsList>
 
           <TabsContent value="details" className="mt-4">
             <Card className="p-6 border-border/70">
@@ -91,6 +121,39 @@ export default function Profile() {
                 <div className="space-y-1.5"><Label>Confirm new password</Label><Input type="password" value={pw.confirm} onChange={(e)=>setPw({...pw, confirm:e.target.value})} minLength={8} required data-testid="profile-confirm-pw-input" /></div>
                 <Button type="submit" disabled={savingPw} data-testid="profile-change-pw-btn">{savingPw ? "Changing…" : "Change password"}</Button>
               </form>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="sessions" className="mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-muted-foreground">Every browser or device signed into your account.</p>
+              <Button variant="outline" size="sm" onClick={revokeOthers} disabled={sessions.length < 2} data-testid="revoke-others-btn">
+                <LogOut className="h-4 w-4 mr-1" />Sign out other devices
+              </Button>
+            </div>
+            <Card className="border-border/70">
+              {sessions.length === 0 && <div className="p-8 text-center text-sm text-muted-foreground">No active sessions.</div>}
+              {sessions.map((s) => (
+                <div key={s.id} className="flex items-center justify-between px-6 py-4 border-b border-border/60 last:border-0 text-sm" data-testid={`session-row-${s.id}`}>
+                  <div className="flex items-center gap-3">
+                    <DeviceIcon device={s.device} />
+                    <div>
+                      <div className="font-medium flex items-center gap-2">
+                        {s.device || "Unknown device"}
+                        {s.is_current && <Badge className="text-[10px]" data-testid="session-current-badge">This device</Badge>}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        IP {s.ip || "—"} · Signed in {formatDate(s.created_at)}
+                      </div>
+                    </div>
+                  </div>
+                  {!s.is_current && (
+                    <Button variant="ghost" size="icon" onClick={()=>revokeSession(s.id)} data-testid={`revoke-session-${s.id}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
             </Card>
           </TabsContent>
         </Tabs>

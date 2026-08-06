@@ -1,11 +1,28 @@
 """FastAPI dependency injection: DB, current user, tenant scope, RBAC."""
 from typing import Annotated, Optional
-from fastapi import Depends, HTTPException, Header, status
+from fastapi import Depends, HTTPException, Header, Request, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.database import get_db
 from app.core.roles import RANK, PLATFORM_ROLES, normalize_tenant_role, effective_rank
 from app.core.security import decode_token
+
+
+def _extract_token(request: Request | None, authorization: str | None) -> str:
+    if authorization and authorization.lower().startswith("bearer "):
+        return authorization.split(" ", 1)[1].strip()
+    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")
+
+
+def decode_current_token(request: Request) -> tuple[str, dict]:
+    """Utility used by session-management routes to read the current jti."""
+    auth = request.headers.get("authorization") or request.headers.get("Authorization") or ""
+    token = _extract_token(request, auth)
+    try:
+        claims = decode_token(token)
+    except Exception:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
+    return token, claims
 
 
 class CurrentUser:
@@ -61,6 +78,13 @@ async def get_current_user(
         claims = decode_token(token)
     except Exception:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
+    # Session revocation check — but only for tokens that carry a jti
+    # (backwards-compat with tokens issued before session-tracking existed).
+    jti = claims.get("jti")
+    if jti:
+        session = await get_db().sessions.find_one({"id": jti})
+        if session and session.get("revoked_at"):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "This session has been signed out")
     return CurrentUser(
         user_id=claims["sub"],
         tenant_id=claims["tenant_id"],

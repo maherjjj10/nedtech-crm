@@ -6,6 +6,8 @@ import AppShell from "./components/layout/AppShell";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import AuthCallback from "./pages/auth/Callback";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import ResetPassword from "./pages/auth/ResetPassword";
 import InviteAccept from "./pages/InviteAccept";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
@@ -38,6 +40,8 @@ function App() {
             <Route path="/auth/login" element={<Login />} />
             <Route path="/auth/register" element={<Register />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+            <Route path="/auth/reset-password/:token" element={<ResetPassword />} />
             <Route path="/invite/:token" element={<InviteAccept />} />
             <Route path="/billing/success" element={<BillingSuccess />} />
             <Route path="/billing/cancel" element={<Navigate to="/billing" replace />} />

@@ -77,6 +77,13 @@ async def ensure_indexes() -> None:
     # Invites: unique per tenant+email while pending
     await db.invites.create_index("token", unique=True)
 
+    # Password reset tokens — hashed token unique, TTL cleans up expired rows
+    await db.password_reset_tokens.create_index("token_hash", unique=True)
+    await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
+
+    # Sessions — indexed by user_id and (id) for fast lookup + revocation
+    await db.sessions.create_index("user_id")
+
     # Text search on clients and deals
     await db.clients.create_index(
         [("tenant_id", 1), ("name", "text"), ("email", "text"), ("company", "text")]
