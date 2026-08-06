@@ -1,0 +1,48 @@
+{
+  "summary": "Backend smoke test of NED Tech CRM (/api/v1). Auth (login, /auth/me), CRUD for clients/deals/tasks/projects/products/employees/invoices/expenses, invoices PDF, pipeline stages/summary, reports summary, dashboard overview, tenant GET/PATCH, module toggle + module gating (403), and AI /ai/tasks + /ai/run chat all working. Found one HIGH priority bug: second user/tenant registration fails with 500 due to non-sparse unique index on users.google_sub; this blocks tenant isolation testing across two tenants.",
+  "tested_scope": ["backend", "auth", "integration"],
+  "passed": [
+    "GET /api/v1/health -> 200 {status: ok}",
+    "GET /api/v1/modules -> 200 (module catalog returned)",
+    "POST /api/v1/auth/login -> 200 with JWT + user + tenant",
+    "GET /api/v1/auth/me -> 200 (Bearer required; 401 when missing/invalid)",
+    "POST/GET/GET-by-id/PATCH/DELETE /api/v1/clients works; ?q= search returns matches; DELETE 204 + subsequent GET 404",
+    "POST/GET /api/v1/pipeline/deals; stage PATCH lead->qualified; GET /pipeline/stages -> ['lead','qualified','proposal','negotiation','won','lost']; GET /pipeline/summary aggregates by_stage",
+    "POST/GET /api/v1/tasks and /api/v1/projects -> 201/200",
+    "POST/GET /api/v1/products and /api/v1/employees -> 201/200",
+    "POST /api/v1/invoices (auto-numbered INV-00001, totals computed); GET list; GET /invoices/{id}/pdf -> 200 application/pdf 2150 bytes; PATCH status draft->sent",
+    "POST /api/v1/expenses -> 201; GET /reports/summary returns revenue/outstanding/expenses/profit",
+    "GET /api/v1/dashboard/overview -> kpis + upcoming_invoices + trend",
+    "GET /api/v1/tenants/me -> 200; PATCH tenants/me currency -> 200",
+    "POST /api/v1/tenants/me/modules {module:'crm', enabled:false} -> 200; then GET /clients -> 403 'Module crm is disabled'; re-enable -> back to 200",
+    "GET /api/v1/ai/tasks lists 6 tasks; POST /api/v1/ai/run {task:'chat', context:'Say hi in 5 words'} -> 200 with text and session_id (EMERGENT_LLM_KEY works)"
+  ],
+  "failed": [
+    {
+      "area": "auth/register - multi-tenant onboarding",
+      "issue": "POST /api/v1/auth/register returns 500 Internal Server Error for any second registration. MongoDB duplicate key error on users.google_sub_1 (unique index) because google_sub is null for all password-registered users. Blocks creating additional tenants/users and therefore blocks true cross-tenant isolation testing.",
+      "evidence": "Backend log: pymongo.errors.DuplicateKeyError: E11000 duplicate key error collection: nedtech_crm.users index: google_sub_1 dup key: { google_sub: null }. Reproduced twice with unique emails.",
+      "priority": "HIGH"
+    },
+    {
+      "area": "tenants/me/modules request schema mismatch",
+      "issue": "Endpoint expects field 'module' but the review request/spec described the field as 'code'. Sending {code:'crm', enabled:false} returns 422. Using {module:'crm', enabled:false} works. Minor spec/documentation mismatch — please confirm intended field name.",
+      "evidence": "422 detail: {'loc':['body','module'],'msg':'Field required'} when sending 'code'; 200 when sending 'module'.",
+      "priority": "LOW"
+    },
+    {
+      "area": "pipeline/deals value field",
+      "issue": "POST /pipeline/deals with {amount:1000} is accepted but stored 'value' remains 0. Schema uses 'value' not 'amount'; extra fields are silently ignored. Consider validating unknown fields or documenting the correct field name to avoid silent data loss.",
+      "evidence": "Sent {\"amount\":1000, ...}; response contained \"value\":0. Later pipeline/summary shows value 0 for the created deal.",
+      "priority": "LOW"
+    }
+  ],
+  "action_items": [
+    "Fix users.google_sub unique index to be a partial/sparse unique index (e.g., partialFilterExpression: { google_sub: { $type: 'string' } } or sparse:true) so multiple users can have null google_sub. This unblocks all subsequent registrations and cross-tenant isolation testing.",
+    "Clarify tenants/me/modules request schema: rename field to 'code' to match spec, or update spec/tests to use 'module'.",
+    "Optional: standardize deal amount field (use 'amount' consistently with docs) or reject unknown fields to prevent silent zero-value deals."
+  ],
+  "success_rate": {"backend": "94%", "frontend": "not tested (backend-only run)"},
+  "retest_needed": true,
+  "full_testing_deferred": true
+}
