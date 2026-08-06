@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 10 - Full backend + frontend E2E testing of (a) Quote Approval → Invoice flow and (b) Contracts & E-Signatures. Backend: 15/16 tests pass (1 tenant-isolation initially skipped due to wrong register payload, fixed and now passes → effectively 16/16 with one edge-case bug: converting an already-converted quote returns 400 instead of the required 409). Frontend E2E: complete flows work — Contracts nav link → template create → contract create → send (public URL copied to clipboard + toast) → public sign page (unauthenticated) → typed signature → row status flips to 'signed'. Quotes: /finance → Quotes tab → new-quote → share (toast + copy-quote appears + status='sent') → public accept page (unauthenticated) → 'Quote accepted' → convert-quote → toast 'Invoice created from quote' + quote status='converted' + new invoice INV-00013 appears in Invoices tab.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/v1/quotes/{qid}/convert", "issue": "Converting an already-converted quote returns 400 'Only accepted quotes can be converted' instead of the required 409. Order of guards in convert_quote_to_invoice: the status check runs before the converted_invoice_id check, so once status flips to 'converted' the 409 branch is unreachable. Fix: swap the two if-blocks, or add 'converted' to a dedicated 409 branch first."},
+      {"endpoint": "GET /api/v1/quotes/{qid}", "issue": "No single-quote GET endpoint exists (only list/patch/delete). Invoices have GET single. Inconsistency — worth adding for UI parity."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Finance → Quotes → New quote modal", "issues": ["Line-item inputs (Description / qty / unit price / tax_rate) have NO data-testid attributes — makes automated testing fragile. Only quote-client-input and quote-save-btn are testable.", "Uses browser-native date picker (<input type='date'>) for Issue date instead of the shadcn Calendar component used elsewhere.", "Invoices/Quotes/Expenses tabs on /finance have no data-testid (only 'tab-quotes' is present; 'tab-invoices' and 'tab-expenses' are missing).", "Currency defaults to 'EUR' but backend list uses '$' for other invoices — inconsistent display in Invoices tab (INV-00013 shows €1,000.00, older TEST_pdf ones show $10.00)."]},
+      {"screen": "Contracts list", "issues": ["Tabs (All/Signed/Pending) are clickable but have no individual data-testid (only contracts-tabs container). Minor."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_quote_contract_flow.py",
+    "/app/test_reports/pytest/iter10.xml"
+  ],
+  "action_items": [
+    "Fix convert-twice returning 400 instead of 409: reorder guards in /app/backend/app/modules/quote_flow/routes.py::convert_quote_to_invoice (check converted_invoice_id / status=='converted' BEFORE the 'must be accepted' check).",
+    "Add data-testid attributes to line-item inputs in the QuoteForm modal (description, qty, unit_price, tax_rate, add-row, remove-row).",
+    "Add data-testid='tab-invoices' and 'tab-expenses' on Finance tabs for symmetry with tab-quotes.",
+    "Consider adding GET /api/v1/quotes/{qid} for parity with invoices."
+  ],
+  "critical_code_review_comments": [
+    "quote_flow/routes.py convert_quote_to_invoice: guard-order bug (see above). Also the response has no explicit status_code so it returns default 200 — consider 201 since a new resource is created.",
+    "contracts/routes.py _is_expired: string comparison of ISO date works because YYYY-MM-DD sorts lexicographically. Fine but fragile — comment it or parse to date().",
+    "quote_flow/routes.py share_quote regenerates status='sent' on every share call — if quote was already accepted/converted, calling /share again would silently regress status. Consider guarding against non-draft/non-sent statuses.",
+    "quote share_token has no expiry — anyone with the URL can accept the quote forever. Consider optional expires_at on quote share.",
+    "contracts routes.py public_sign stores IP but does not hash — GDPR consideration (minor)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_quote_contract_flow.py (new)"
+  ],
+  "success_rate": {"backend": "94% (15/16 first run; tenant-isolation now passing on fix → effectively 15/16 with 1 documented convert-twice-409 bug)", "frontend": "100% of critical flows (contract e-sign end-to-end, quote share/accept/convert end-to-end)"},
+  "test_credentials": "owner@nedtech.media / Password123! used (has finance module enabled). Platform owner NOT used — reserved.",
+  "seed_data_creation": "Created 2 contracts (E2E Contract + TEST_MSA — TEST_MSA signed by E2E Signer), 1 template (E2E TPL), 1 quote (QUO-00001 converted to INV-00013). Left in DB under tenant owner@nedtech.media for regression traceability.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend + Frontend both validated for iter 10 quote/contract flows. Only one bug remains: POST /quotes/{qid}/convert returns 400 instead of 409 on a second convert. Everything else — public unauthenticated pages, tenant isolation, PDF streaming, expired contract 410, sign-without-consent 400, second-decision 409 — works. Public URLs are absolute (FRONTEND_URL in backend .env). React /public/quote/:token and /public/contract/:token render fine without auth cookies.",
+  "rca_of_the_issue": "convert_quote_to_invoice checks 'status not in (accepted,)' FIRST → returns 400 for any non-accepted status including 'converted'. It then checks converted_invoice_id → but that 409 branch is unreachable. Reproduction: create quote → accept → convert (→200) → convert again (→400 instead of 409). Fix: move the converted_invoice_id / status=='converted' check BEFORE the accepted-status check, or return 409 when status == 'converted'."
+}

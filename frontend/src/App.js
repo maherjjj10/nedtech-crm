@@ -23,6 +23,9 @@ import Billing from "./pages/Billing";
 import BillingSuccess from "./pages/BillingSuccess";
 import Platform from "./pages/Platform";
 import Profile from "./pages/Profile";
+import Contracts from "./pages/Contracts";
+import PublicQuote from "./pages/PublicQuote";
+import PublicContract from "./pages/PublicContract";
 
 function Guard({ children }) {
   const { user, loading } = useAuth();
@@ -45,6 +48,8 @@ function App() {
             <Route path="/invite/:token" element={<InviteAccept />} />
             <Route path="/billing/success" element={<BillingSuccess />} />
             <Route path="/billing/cancel" element={<Navigate to="/billing" replace />} />
+            <Route path="/public/quote/:token" element={<PublicQuote />} />
+            <Route path="/public/contract/:token" element={<PublicContract />} />
 
             <Route element={<Guard><AppShell /></Guard>}>
               <Route path="/" element={<Dashboard />} />
@@ -53,6 +58,7 @@ function App() {
               <Route path="/pipeline" element={<Pipeline />} />
               <Route path="/tasks" element={<Tasks />} />
               <Route path="/finance" element={<Finance />} />
+              <Route path="/contracts" element={<Contracts />} />
               <Route path="/products" element={<Products />} />
               <Route path="/employees" element={<Employees />} />
               <Route path="/ai" element={<AIAssistant />} />

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, TrendingUp, ListChecks, FileText, Package, UserCog, Sparkles, Settings, LogOut, Sun, Moon, CreditCard, Menu, X, Shield, User } from "lucide-react";
+import { LayoutDashboard, Users, TrendingUp, ListChecks, FileText, FileSignature, Package, UserCog, Sparkles, Settings, LogOut, Sun, Moon, CreditCard, Menu, X, Shield, User } from "lucide-react";
 import { Button } from "../ui/button";
 import { useTheme } from "../../lib/themeContext";
 import { useAuth } from "../../lib/authContext";
@@ -13,6 +13,7 @@ const NAV = [
   { to: "/pipeline", label: "Sales Pipeline", icon: TrendingUp, testid: "nav-pipeline" },
   { to: "/tasks", label: "Tasks", icon: ListChecks, testid: "nav-tasks" },
   { to: "/finance", label: "Finance", icon: FileText, testid: "nav-finance" },
+  { to: "/contracts", label: "Contracts", icon: FileSignature, testid: "nav-contracts" },
   { to: "/products", label: "Products & Services", icon: Package, testid: "nav-products" },
   { to: "/employees", label: "Employees", icon: UserCog, testid: "nav-employees" },
   { to: "/ai", label: "AI Assistant", icon: Sparkles, testid: "nav-ai" },

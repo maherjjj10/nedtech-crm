@@ -17,6 +17,8 @@ from app.modules.billing.routes import router as billing_router
 from app.modules.calendar.routes import router as calendar_router
 from app.modules.profile.routes import router as profile_router
 from app.modules.sessions.routes import router as sessions_router
+from app.modules.quote_flow.routes import router as quote_flow_router, public_router as _q_public
+from app.modules.contracts.routes import router as contracts_router, public_router as _c_public
 
 
 # System modules (always enabled — not user-toggleable)
@@ -24,6 +26,9 @@ SYSTEM_ROUTERS = [
     auth_router, tenants_router, dashboard_router,
     invites_router, billing_router, profile_router, sessions_router,
 ]
+
+# Public (unauthenticated share-token) routers — mounted alongside /api/v1 in server.py.
+PUBLIC_ROUTERS = [_q_public, _c_public]
 
 # Toggleable modules
 MODULES = [

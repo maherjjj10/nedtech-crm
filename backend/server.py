@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.core.database import close_db, ensure_indexes
 from app.core.module_registry import list_modules
 from app.core.seed import seed_platform_owner
-from app.modules.registry import SYSTEM_ROUTERS, MODULES  # noqa: F401  (side-effect: registers modules)
+from app.modules.registry import SYSTEM_ROUTERS, MODULES, PUBLIC_ROUTERS  # noqa: F401  (side-effect: registers modules)
 from app.modules.billing.webhook import webhook_router as stripe_webhook_router
 from app.modules.platform.routes import router as platform_router
 
@@ -67,8 +67,17 @@ for m in list_modules():
 from app.modules.client_notes.routes import router as _client_notes_router  # noqa: E402
 api_v1.include_router(_client_notes_router)
 
+# Finance subresources (quote flow + contracts) — also under the finance gate.
+from app.modules.registry import quote_flow_router as _qf_router, contracts_router as _ct_router  # noqa: E402
+api_v1.include_router(_qf_router)
+api_v1.include_router(_ct_router)
+
 # Platform admin (cross-tenant super-admin surface)
 api_v1.include_router(platform_router)
+
+# Public (unauthenticated) routers — quote/contract share tokens
+for r in PUBLIC_ROUTERS:
+    api_v1.include_router(r)
 
 
 @api_v1.get("/health", tags=["System"])

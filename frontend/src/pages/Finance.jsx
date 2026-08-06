@@ -9,13 +9,60 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { api } from "../lib/apiClient";
-import { Plus, Trash2, Download } from "lucide-react";
+import { Plus, Trash2, Download, Send, Copy, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "../lib/format";
 import { useAuth } from "../lib/authContext";
 
 const emptyInvoice = { client_name: "", issue_date: "", due_date: "", currency: "USD", status: "draft", items: [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0 }], notes: "" };
+const emptyQuote = { client_name: "", issue_date: "", currency: "USD", status: "draft", items: [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0 }], notes: "" };
 const emptyExpense = { date: "", category: "general", vendor: "", amount: 0, currency: "USD", tax_rate: 0, description: "" };
+
+function LineItemsEditor({ items, onChange, currency }) {
+  const up = (idx, key, val) => onChange(items.map((it, i) => i===idx ? { ...it, [key]: key==='description' ? val : Number(val) } : it));
+  const add = () => onChange([...items, { description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
+  const rm = (idx) => onChange(items.filter((_, i) => i !== idx));
+  const subtotal = items.reduce((s, it) => s + (it.quantity * it.unit_price), 0);
+  const tax = items.reduce((s, it) => s + (it.quantity * it.unit_price) * (it.tax_rate/100), 0);
+  return (
+    <>
+      <div className="space-y-2">
+        <div className="n-overline">Line items</div>
+        {items.map((it, idx) => (
+          <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+            <Input className="col-span-5" placeholder="Description" value={it.description} onChange={(e)=>up(idx,'description',e.target.value)} required />
+            <Input className="col-span-2" type="number" placeholder="Qty" value={it.quantity} onChange={(e)=>up(idx,'quantity',e.target.value)} />
+            <Input className="col-span-2" type="number" placeholder="Price" value={it.unit_price} onChange={(e)=>up(idx,'unit_price',e.target.value)} />
+            <Input className="col-span-2" type="number" placeholder="Tax %" value={it.tax_rate} onChange={(e)=>up(idx,'tax_rate',e.target.value)} />
+            <Button type="button" variant="ghost" size="icon" onClick={()=>rm(idx)} className="col-span-1"><Trash2 className="h-4 w-4" /></Button>
+          </div>
+        ))}
+        <Button type="button" variant="outline" size="sm" onClick={add}><Plus className="h-3 w-3 mr-1" />Add row</Button>
+      </div>
+      <div className="text-right space-y-0.5 border-t border-border pt-3">
+        <div className="text-sm">Subtotal: <span className="font-medium">{formatCurrency(subtotal, currency)}</span></div>
+        <div className="text-sm">Tax: <span className="font-medium">{formatCurrency(tax, currency)}</span></div>
+        <div className="text-lg font-bold">Total: {formatCurrency(subtotal + tax, currency)}</div>
+      </div>
+    </>
+  );
+}
+
+function QuoteForm({ initial, onSave }) {
+  const [form, setForm] = useState(initial);
+  return (
+    <form onSubmit={(e)=>{e.preventDefault(); onSave(form);}} className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5 col-span-2"><Label>Client name</Label><Input value={form.client_name} onChange={(e)=>setForm({...form, client_name:e.target.value})} required data-testid="quote-client-input" /></div>
+        <div className="space-y-1.5"><Label>Issue date</Label><Input type="date" value={form.issue_date} onChange={(e)=>setForm({...form, issue_date:e.target.value})} /></div>
+        <div className="space-y-1.5"><Label>Currency</Label><Input value={form.currency} onChange={(e)=>setForm({...form, currency:e.target.value})} /></div>
+        <div className="space-y-1.5 col-span-2"><Label>Notes</Label><Input value={form.notes || ""} onChange={(e)=>setForm({...form, notes:e.target.value})} /></div>
+      </div>
+      <LineItemsEditor items={form.items} onChange={(items)=>setForm({...form, items})} currency={form.currency} />
+      <DialogFooter><Button type="submit" data-testid="quote-save-btn">Save quote</Button></DialogFooter>
+    </form>
+  );
+}
 
 function InvoiceForm({ initial, onSave }) {
   const [form, setForm] = useState(initial);
@@ -68,21 +115,51 @@ function InvoiceForm({ initial, onSave }) {
 export default function Finance() {
   const { tenant } = useAuth();
   const [invoices, setInvoices] = useState([]);
+  const [quotes, setQuotes] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [summary, setSummary] = useState({});
   const [openInv, setOpenInv] = useState(false);
+  const [openQuote, setOpenQuote] = useState(false);
   const [openExp, setOpenExp] = useState(false);
   const [expenseForm, setExpenseForm] = useState(emptyExpense);
 
   const load = async () => {
-    const [i, e, s] = await Promise.all([api.get("/invoices"), api.get("/expenses"), api.get("/reports/summary")]);
-    setInvoices(i.data); setExpenses(e.data); setSummary(s.data);
+    const [i, q, e, s] = await Promise.all([
+      api.get("/invoices"),
+      api.get("/quotes"),
+      api.get("/expenses"),
+      api.get("/reports/summary"),
+    ]);
+    setInvoices(i.data); setQuotes(q.data); setExpenses(e.data); setSummary(s.data);
   };
   useEffect(() => { load(); }, []);
 
   const saveInvoice = async (form) => {
     try { await api.post("/invoices", form); toast.success("Invoice created"); setOpenInv(false); load(); }
     catch { toast.error("Failed"); }
+  };
+  const saveQuote = async (form) => {
+    try { await api.post("/quotes", form); toast.success("Quote created"); setOpenQuote(false); load(); }
+    catch { toast.error("Failed"); }
+  };
+  const shareQuote = async (id) => {
+    try {
+      const { data } = await api.post(`/quotes/${id}/share`);
+      await navigator.clipboard.writeText(data.public_url);
+      toast.success("Public link copied — send it to your client");
+      load();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Failed"); }
+  };
+  const convertQuote = async (id) => {
+    try {
+      await api.post(`/quotes/${id}/convert`, { create_project: false });
+      toast.success("Invoice created from quote");
+      load();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Failed"); }
+  };
+  const deleteQuote = async (id) => {
+    if (!window.confirm("Delete quote?")) return;
+    await api.delete(`/quotes/${id}`); load();
   };
   const saveExpense = async (e) => {
     e.preventDefault();
@@ -112,7 +189,7 @@ export default function Finance() {
         </div>
 
         <Tabs defaultValue="invoices">
-          <TabsList data-testid="finance-tabs"><TabsTrigger value="invoices">Invoices</TabsTrigger><TabsTrigger value="expenses">Expenses</TabsTrigger></TabsList>
+          <TabsList data-testid="finance-tabs"><TabsTrigger value="invoices">Invoices</TabsTrigger><TabsTrigger value="quotes" data-testid="tab-quotes">Quotes</TabsTrigger><TabsTrigger value="expenses">Expenses</TabsTrigger></TabsList>
 
           <TabsContent value="invoices" className="mt-6">
             <div className="flex justify-end mb-3">
@@ -138,6 +215,44 @@ export default function Finance() {
                   <div className="col-span-2 text-right flex items-center justify-end gap-2">
                     <span className="font-semibold">{formatCurrency(inv.totals?.total, inv.currency)}</span>
                     <Button variant="ghost" size="icon" onClick={()=>downloadPdf(inv.id, inv.number)} data-testid={`download-invoice-${inv.id}`}><Download className="h-4 w-4" /></Button>
+                  </div>
+                </div>
+              ))}
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="quotes" className="mt-6">
+            <div className="flex justify-end mb-3">
+              <Dialog open={openQuote} onOpenChange={setOpenQuote}>
+                <DialogTrigger asChild><Button data-testid="new-quote-btn"><Plus className="h-4 w-4 mr-1" />New quote</Button></DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader><DialogTitle>New quote</DialogTitle></DialogHeader>
+                  <QuoteForm initial={{ ...emptyQuote, currency: tenant?.currency || "USD" }} onSave={saveQuote} />
+                </DialogContent>
+              </Dialog>
+            </div>
+            <Card className="border-border/70">
+              <div className="grid grid-cols-12 px-6 py-3 border-b border-border n-overline">
+                <div className="col-span-2">Number</div><div className="col-span-3">Client</div><div className="col-span-2">Status</div><div className="col-span-2 text-right">Total</div><div className="col-span-3 text-right">Actions</div>
+              </div>
+              {quotes.length === 0 && <div className="p-8 text-center text-sm text-muted-foreground">No quotes yet.</div>}
+              {quotes.map((q) => (
+                <div key={q.id} className="grid grid-cols-12 px-6 py-4 border-b border-border/60 last:border-0 items-center text-sm" data-testid={`quote-row-${q.id}`}>
+                  <div className="col-span-2 font-medium">{q.number}</div>
+                  <div className="col-span-3">{q.client_name || "—"}</div>
+                  <div className="col-span-2"><Badge variant={q.status==="accepted"||q.status==="converted"?"default":"outline"}>{q.status}</Badge></div>
+                  <div className="col-span-2 text-right font-semibold">{formatCurrency(q.totals?.total, q.currency)}</div>
+                  <div className="col-span-3 text-right flex items-center justify-end gap-1">
+                    {q.status !== "converted" && q.status !== "accepted" && q.status !== "rejected" && (
+                      <Button variant="outline" size="sm" onClick={()=>shareQuote(q.id)} data-testid={`share-quote-${q.id}`}><Send className="h-3 w-3 mr-1" />Share</Button>
+                    )}
+                    {q.share_token && q.status !== "converted" && (
+                      <Button variant="ghost" size="icon" title="Copy link" onClick={async()=>{ const url = `${window.location.origin}/public/quote/${q.share_token}`; await navigator.clipboard.writeText(url); toast.success("Link copied"); }} data-testid={`copy-quote-${q.id}`}><Copy className="h-4 w-4" /></Button>
+                    )}
+                    {q.status === "accepted" && (
+                      <Button size="sm" onClick={()=>convertQuote(q.id)} data-testid={`convert-quote-${q.id}`}><Wand2 className="h-3 w-3 mr-1" />Convert</Button>
+                    )}
+                    <Button variant="ghost" size="icon" onClick={()=>deleteQuote(q.id)} data-testid={`delete-quote-${q.id}`}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 </div>
               ))}
