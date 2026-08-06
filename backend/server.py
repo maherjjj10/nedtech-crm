@@ -55,18 +55,14 @@ api_v1 = APIRouter(prefix="/api/v1")
 for r in SYSTEM_ROUTERS:
     api_v1.include_router(r)
 
-# Toggleable module routers (registered exactly once even when several share a gate)
-_seen_ids = set()
+# Toggleable module routers
 for m in list_modules():
-    if id(m.router) in _seen_ids:
-        continue
-    _seen_ids.add(id(m.router))
     api_v1.include_router(m.router)
 
-# Register additional routers that share an existing module gate (Client 360 notes/timeline)
+# Client 360 subresources share the CRM module gate but need to be mounted
+# alongside (not through) the registry.
 from app.modules.client_notes.routes import router as _client_notes_router  # noqa: E402
-if id(_client_notes_router) not in _seen_ids:
-    api_v1.include_router(_client_notes_router)
+api_v1.include_router(_client_notes_router)
 
 
 @api_v1.get("/health", tags=["System"])

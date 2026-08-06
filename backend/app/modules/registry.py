@@ -26,8 +26,6 @@ SYSTEM_ROUTERS = [
 # Toggleable modules
 MODULES = [
     ModuleDefinition(code="crm", name="CRM", router=clients_router),
-    # Client 360 subresources ride under the CRM module gate as well
-    ModuleDefinition(code="crm", name="Client 360", router=client_notes_router),
     ModuleDefinition(code="sales", name="Sales Pipeline", router=pipeline_router),
     ModuleDefinition(code="tasks", name="Tasks & Projects", router=tasks_router),
     ModuleDefinition(code="finance", name="Finance", router=finance_router),
@@ -37,10 +35,5 @@ MODULES = [
     ModuleDefinition(code="calendar", name="Calendar", router=calendar_router),
 ]
 
-# de-dup by (code + router id) — allow two routers to share the same gate
-_seen = set()
 for m in MODULES:
-    if id(m.router) in _seen:
-        continue
-    _seen.add(id(m.router))
     register_module(m)
