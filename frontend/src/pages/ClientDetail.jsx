@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import PageHeader from "../components/layout/PageHeader";
 import { Card } from "../components/ui/card";
@@ -20,13 +20,18 @@ export default function ClientDetail() {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
-    try {
-      const { data } = await api.get(`/clients/${id}/timeline`);
-      setData(data);
-    } catch { toast.error("Client not found"); }
-  };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
+ const load = useCallback(async () => {
+  try {
+    const { data } = await api.get(`/clients/${id}/timeline`);
+    setData(data);
+  } catch {
+    toast.error("Client not found");
+  }
+}, [id]);
+
+useEffect(() => {
+  load();
+}, [load]);
 
   const addNote = async (e) => {
     e.preventDefault();
