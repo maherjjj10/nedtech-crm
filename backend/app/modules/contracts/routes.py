@@ -505,13 +505,13 @@ async def public_get_contract(token: str, request: Request):
 
 
 @public_router.get("/{token}/pdf")
-async def public_pdf(token: str):
+async def public_pdf(token: str, lang: str = "en"):
     db = get_db()
     c = await db.contracts.find_one({"share_token": token}, {"_id": 0})
     if not c:
         raise HTTPException(404, "Contract not found")
     tenant = await db.tenants.find_one({"id": c["tenant_id"]}, {"_id": 0}) or {}
-    pdf = _render_pdf(c, tenant)
+    pdf = _render_pdf(c, tenant, lang)
     fname = (c.get("title") or "contract").replace(" ", "_")
     return StreamingResponse(BytesIO(pdf), media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{fname}.pdf"'})
@@ -649,16 +649,80 @@ def _html_to_paragraphs(html: str) -> list[tuple[str, str]]:
     return blocks
 
 
-def _render_pdf(contract: dict, tenant: dict) -> bytes:
+def _render_pdf(contract: dict, tenant: dict, lang: str | None = None) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
-    from reportlab.lib.units import cm, mm
+    from reportlab.lib.units import cm
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.platypus import (
-        SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle,
-        PageBreak, ListFlowable, ListItem, KeepTogether,
+        SimpleDocTemplate,
+        Paragraph,
+        Spacer,
+        Image,
+        Table,
+        TableStyle,
+        ListFlowable,
+        ListItem,
     )
     from reportlab.pdfgen.canvas import Canvas
+
+    # Language priority: explicit lang parameter > tenant locale > English.
+    locale = (lang or tenant.get("locale") or "en").lower().split("-")[0].split("_")[0]
+
+    PDF_TEXT = {
+        "en": {
+            "prepared_for": "Prepared for",
+            "vat": "VAT",
+            "verification_id": "Verification ID",
+            "issued": "Issued",
+            "amount": "Amount",
+            "signatures": "Signatures",
+            "signed_on": "Signed on",
+            "ip": "IP",
+            "page": "Page",
+            "client_signature_pending": "Client signature (pending)",
+        },
+        "nl": {
+            "prepared_for": "Opgesteld voor",
+            "vat": "Btw",
+            "verification_id": "Verificatie-ID",
+            "issued": "Uitgegeven",
+            "amount": "Bedrag",
+            "signatures": "Handtekeningen",
+            "signed_on": "Ondertekend op",
+            "ip": "IP",
+            "page": "Pagina",
+            "client_signature_pending": "Handtekening klant (in afwachting)",
+        },
+        "de": {
+            "prepared_for": "Erstellt für",
+            "vat": "USt.",
+            "verification_id": "Verifizierungs-ID",
+            "issued": "Ausgestellt",
+            "amount": "Betrag",
+            "signatures": "Unterschriften",
+            "signed_on": "Unterzeichnet am",
+            "ip": "IP",
+            "page": "Seite",
+            "client_signature_pending": "Kundenunterschrift (ausstehend)",
+        },
+        "fr": {
+            "prepared_for": "Préparé pour",
+            "vat": "TVA",
+            "verification_id": "ID de vérification",
+            "issued": "Émis le",
+            "amount": "Montant",
+            "signatures": "Signatures",
+            "signed_on": "Signé le",
+            "ip": "IP",
+            "page": "Page",
+            "client_signature_pending": "Signature du client (en attente)",
+        },
+    }
+
+    if locale not in PDF_TEXT:
+        locale = "en"
+    tx = PDF_TEXT[locale]
 
     variables = _build_variables(contract, tenant)
     body_html = _resolve_variables(contract.get("body_html", ""), variables)
@@ -666,66 +730,168 @@ def _render_pdf(contract: dict, tenant: dict) -> bytes:
 
     verification_id = contract.get("verification_id") or "—"
     frontend = os.environ.get("FRONTEND_URL", "").rstrip("/")
-    verify_url = f"{frontend}/public/contract/{contract.get('share_token','')}"
+    verify_url = f"{frontend}/public/contract/{contract.get('share_token', '')}"
 
     buf = BytesIO()
     doc = SimpleDocTemplate(
-        buf, pagesize=A4,
+        buf,
+        pagesize=A4,
         title=contract.get("title", "Contract"),
-        author=tenant.get("name", "NED Tech"),
-        leftMargin=2 * cm, rightMargin=2 * cm,
-        topMargin=2.6 * cm, bottomMargin=2.2 * cm,
+        author=tenant.get("name", "NED Tech V.O.F"),
+        leftMargin=2 * cm,
+        rightMargin=2 * cm,
+        topMargin=2.6 * cm,
+        bottomMargin=2.2 * cm,
     )
+
     styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle(name="h1_c", parent=styles["Heading1"], fontSize=20, spaceAfter=10, textColor=colors.HexColor("#0a0a0a")))
-    styles.add(ParagraphStyle(name="h2_c", parent=styles["Heading2"], fontSize=15, spaceAfter=8, textColor=colors.HexColor("#171717")))
-    styles.add(ParagraphStyle(name="h3_c", parent=styles["Heading3"], fontSize=12, spaceAfter=6, textColor=colors.HexColor("#171717")))
-    styles.add(ParagraphStyle(name="body_c", parent=styles["BodyText"], fontSize=10.5, leading=15, spaceAfter=6, textColor=colors.HexColor("#171717")))
-    styles.add(ParagraphStyle(name="li_c", parent=styles["BodyText"], fontSize=10.5, leading=15, bulletIndent=8, leftIndent=18))
-    styles.add(ParagraphStyle(name="bq_c", parent=styles["BodyText"], fontSize=10.5, leading=15, leftIndent=18, textColor=colors.HexColor("#525252")))
-    styles.add(ParagraphStyle(name="sig_c", fontName="Helvetica-Oblique", fontSize=22))
-    styles.add(ParagraphStyle(name="muted_c", fontSize=8.5, textColor=colors.HexColor("#737373")))
+    styles.add(
+        ParagraphStyle(
+            name="h1_c",
+            parent=styles["Heading1"],
+            fontSize=20,
+            spaceAfter=10,
+            textColor=colors.HexColor("#0a0a0a"),
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="h2_c",
+            parent=styles["Heading2"],
+            fontSize=15,
+            spaceAfter=8,
+            textColor=colors.HexColor("#171717"),
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="h3_c",
+            parent=styles["Heading3"],
+            fontSize=12,
+            spaceAfter=6,
+            textColor=colors.HexColor("#171717"),
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="body_c",
+            parent=styles["BodyText"],
+            fontSize=10.5,
+            leading=15,
+            spaceAfter=6,
+            textColor=colors.HexColor("#171717"),
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="li_c",
+            parent=styles["BodyText"],
+            fontSize=10.5,
+            leading=15,
+            bulletIndent=8,
+            leftIndent=18,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="bq_c",
+            parent=styles["BodyText"],
+            fontSize=10.5,
+            leading=15,
+            leftIndent=18,
+            textColor=colors.HexColor("#525252"),
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="sig_c",
+            fontName="Helvetica-Oblique",
+            fontSize=22,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="muted_c",
+            fontSize=8.5,
+            textColor=colors.HexColor("#737373"),
+        )
+    )
 
     story: list = []
 
-    # Header block (tenant + client)
+    # Header block: company + client snapshot.
     snap = contract.get("client_snapshot") or {}
-    top_data = [[
-        Paragraph(f"<b>{tenant.get('name','Company')}</b><br/>"
-                  f"{tenant.get('address','') or ''}<br/>"
-                  f"{tenant.get('website','') or ''}", styles["body_c"]),
-        Paragraph(f"<b>Prepared for</b><br/>"
-                  f"{snap.get('company','') or snap.get('client_name','')}<br/>"
-                  f"{snap.get('contact_person','') or ''}<br/>"
-                  f"{snap.get('email','') or ''}<br/>"
-                  f"{snap.get('address','') or ''}<br/>"
-                  f"{'VAT: ' + snap.get('vat_number') if snap.get('vat_number') else ''}",
-                  styles["body_c"]),
-    ]]
-    t = Table(top_data, colWidths=[8.5 * cm, 8.5 * cm])
-    t.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("BOX", (0, 0), (-1, -1), 0, colors.white),
-    ]))
-    story.append(t)
+    vat_line = (
+        f"{tx['vat']}: {snap.get('vat_number')}"
+        if snap.get("vat_number")
+        else ""
+    )
+
+    top_data = [
+        [
+            Paragraph(
+                f"<b>{tenant.get('name', 'Company')}</b><br/>"
+                f"{tenant.get('address', '') or ''}<br/>"
+                f"{tenant.get('website', '') or ''}",
+                styles["body_c"],
+            ),
+            Paragraph(
+                f"<b>{tx['prepared_for']}</b><br/>"
+                f"{snap.get('company', '') or snap.get('client_name', '')}<br/>"
+                f"{snap.get('contact_person', '') or ''}<br/>"
+                f"{snap.get('email', '') or ''}<br/>"
+                f"{snap.get('address', '') or ''}<br/>"
+                f"{vat_line}",
+                styles["body_c"],
+            ),
+        ]
+    ]
+
+    table = Table(top_data, colWidths=[8.5 * cm, 8.5 * cm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("BOX", (0, 0), (-1, -1), 0, colors.white),
+            ]
+        )
+    )
+    story.append(table)
     story.append(Spacer(1, 12))
     story.append(Paragraph(contract.get("title", "Contract"), styles["h1_c"]))
-    story.append(Paragraph(
-        f"Verification ID: <b>{verification_id}</b> &nbsp;·&nbsp; "
-        f"Issued: {date.today().isoformat()}"
-        + (f" &nbsp;·&nbsp; Amount: {variables.get('contract_amount')}" if variables.get("contract_amount") else ""),
-        styles["muted_c"]))
+
+    meta_text = (
+        f"{tx['verification_id']}: <b>{verification_id}</b> &nbsp;·&nbsp; "
+        f"{tx['issued']}: {date.today().isoformat()}"
+    )
+    if variables.get("contract_amount"):
+        meta_text += f" &nbsp;·&nbsp; {tx['amount']}: {variables['contract_amount']}"
+    story.append(Paragraph(meta_text, styles["muted_c"]))
     story.append(Spacer(1, 14))
 
-    # Body
+    # Contract body.
     li_buffer: list = []
     for tag, inner in blocks:
         if tag == "li":
-            li_buffer.append(ListItem(Paragraph(inner, styles["body_c"]), leftIndent=10))
+            li_buffer.append(
+                ListItem(
+                    Paragraph(inner, styles["body_c"]),
+                    leftIndent=10,
+                )
+            )
             continue
+
         if li_buffer:
-            story.append(ListFlowable(li_buffer, bulletType="bullet", start="•", leftIndent=20))
+            story.append(
+                ListFlowable(
+                    li_buffer,
+                    bulletType="bullet",
+                    start="•",
+                    leftIndent=20,
+                )
+            )
             li_buffer = []
+
         if tag == "h1":
             story.append(Paragraph(inner, styles["h1_c"]))
         elif tag == "h2":
@@ -736,61 +902,122 @@ def _render_pdf(contract: dict, tenant: dict) -> bytes:
             story.append(Paragraph(inner, styles["bq_c"]))
         else:
             story.append(Paragraph(inner, styles["body_c"]))
-    if li_buffer:
-        story.append(ListFlowable(li_buffer, bulletType="bullet", start="•", leftIndent=20))
 
-    # Signature block
+    if li_buffer:
+        story.append(
+            ListFlowable(
+                li_buffer,
+                bulletType="bullet",
+                start="•",
+                leftIndent=20,
+            )
+        )
+
+
+    # Signature block.
     story.append(Spacer(1, 18))
-    story.append(Paragraph("<b>Signatures</b>", styles["h3_c"]))
+    story.append(Paragraph(f"<b>{tx['signatures']}</b>", styles["h3_c"]))
+
+
     sig = contract.get("signature") or {}
     if sig:
         if sig.get("signature_type") == "drawn" and sig.get("signature_data"):
             try:
                 b64 = sig["signature_data"].split(",", 1)[-1]
-                img = Image(BytesIO(base64.b64decode(b64)), width=6 * cm, height=2 * cm)
+                img = Image(
+                    BytesIO(base64.b64decode(b64)),
+                    width=6 * cm,
+                    height=2 * cm,
+                )
                 story.append(img)
+                story.append(Spacer(1, 10))
             except Exception:
-                story.append(Paragraph(sig.get("signer_name", ""), styles["sig_c"]))
+                story.append(
+                    Paragraph(
+                        sig.get("signer_name", ""),
+                        styles["sig_c"],
+                    )
+                )
         else:
-            story.append(Paragraph(sig.get("signer_name", ""), styles["sig_c"]))
-        story.append(Paragraph(
-            f"{sig.get('signer_name','')}<br/>"
-            f"Signed on {sig.get('signed_at','')}<br/>"
-            f"IP: {sig.get('ip','')}",
-            styles["muted_c"]))
-    else:
-        story.append(Paragraph("_________________________________<br/>Client signature (pending)",
-                               styles["muted_c"]))
+            story.append(
+                Paragraph(
+                    sig.get("signer_name", ""),
+                    styles["sig_c"],
+                )
+            )
 
-    # Footer with QR code — drawn via canvas hook
+        story.append(
+            Paragraph(
+                f"{sig.get('signer_name', '')}<br/>"
+                f"{tx['signed_on']}: {sig.get('signed_at', '')}<br/>"
+                f"{tx['ip']}: {sig.get('ip', '')}",
+                styles["muted_c"],
+            )
+        )
+    else:
+        story.append(
+            Paragraph(
+                "_________________________________<br/>"
+                + tx["client_signature_pending"],
+                styles["muted_c"],
+            )
+        )
+
+    # Header/footer and QR verification code.
     def on_page(canvas: Canvas, doc):
         page = canvas.getPageNumber()
         w, h = A4
-        # Header line
+
         canvas.setStrokeColor(colors.HexColor("#e5e5e5"))
         canvas.line(2 * cm, h - 2 * cm, w - 2 * cm, h - 2 * cm)
         canvas.setFont("Helvetica", 8)
         canvas.setFillColor(colors.HexColor("#525252"))
-        canvas.drawString(2 * cm, h - 1.5 * cm, tenant.get("name", "Company"))
-        canvas.drawRightString(w - 2 * cm, h - 1.5 * cm,
-                               contract.get("title", "Contract"))
-        # Footer
+        canvas.drawString(
+            2 * cm,
+            h - 1.5 * cm,
+            tenant.get("name", "Company"),
+        )
+        canvas.drawRightString(
+            w - 2 * cm,
+            h - 1.5 * cm,
+            contract.get("title", "Contract"),
+        )
+
         canvas.setStrokeColor(colors.HexColor("#e5e5e5"))
         canvas.line(2 * cm, 1.8 * cm, w - 2 * cm, 1.8 * cm)
         canvas.setFillColor(colors.HexColor("#525252"))
-        canvas.drawString(2 * cm, 1.3 * cm,
-                          f"Verification ID: {verification_id}")
-        canvas.drawCentredString(w / 2, 1.3 * cm,
-                                 f"Page {page}")
-        canvas.drawRightString(w - 2 * cm, 1.3 * cm,
-                               tenant.get("website", "") or "")
-        # QR code — only on last page bottom-right (approx: always draw small)
+        canvas.setFont("Helvetica", 8)
+        canvas.drawString(
+            2 * cm,
+            1.3 * cm,
+            f"{tx['verification_id']}: {verification_id}",
+        )
+        canvas.drawCentredString(
+            w / 2,
+            1.3 * cm,
+            f"{tx['page']} {page}",
+        )
+        canvas.drawRightString(
+            w - 2 * cm,
+            1.3 * cm,
+            tenant.get("website", "") or "",
+        )
+
         try:
             from reportlab.lib.utils import ImageReader
-            qr = ImageReader(BytesIO(_qr_png(verify_url or verification_id)))
-            canvas.drawImage(qr, w - 3.2 * cm, 2.0 * cm,
-                             width=1.2 * cm, height=1.2 * cm, mask="auto")
-        except Exception as e:
+
+            qr = ImageReader(
+                BytesIO(_qr_png(verify_url or verification_id))
+            )
+            canvas.drawImage(
+                qr,
+                w - 3.2 * cm,
+                2.0 * cm,
+                width=1.2 * cm,
+                height=1.2 * cm,
+                mask="auto",
+            )
+        except Exception:
             pass
 
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)

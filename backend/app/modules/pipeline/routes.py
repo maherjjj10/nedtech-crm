@@ -1,16 +1,34 @@
 """Sales pipeline: leads + deals with Kanban stages."""
+
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db
-from app.core.deps import UserDep
+from app.core.deps import UserDep, require_permission
 from app.core.module_registry import module_gate
 from app.core.repository import BaseRepository
 
-router = APIRouter(prefix="/pipeline", tags=["Sales Pipeline"], dependencies=[Depends(module_gate("sales"))])
 
-DEFAULT_STAGES = ["lead", "qualified", "proposal", "negotiation", "won", "lost"]
+router = APIRouter(
+    prefix="/pipeline",
+    tags=["Sales Pipeline"],
+    dependencies=[
+        Depends(module_gate("sales")),
+        Depends(require_permission("sales")),
+    ],
+)
+
+
+DEFAULT_STAGES = [
+    "lead",
+    "qualified",
+    "proposal",
+    "negotiation",
+    "won",
+    "lost",
+]
 
 
 class DealIn(BaseModel):
@@ -46,8 +64,14 @@ _repo: BaseRepository | None = None
 
 def _get_repo() -> BaseRepository:
     global _repo
+
     if _repo is None:
-        _repo = BaseRepository(get_db(), DealIn, "deals")
+        _repo = BaseRepository(
+            get_db(),
+            DealIn,
+            "deals",
+        )
+
     return _repo
 
 
@@ -57,50 +81,120 @@ async def get_stages(user: UserDep):
 
 
 @router.get("/deals")
-async def list_deals(user: UserDep, stage: str | None = None):
+async def list_deals(
+    user: UserDep,
+    stage: str | None = None,
+):
     filters = {"stage": stage} if stage else {}
-    return await _get_repo().list(user.tenant_id, filters, limit=500)
+
+    return await _get_repo().list(
+        user.tenant_id,
+        filters,
+        limit=500,
+    )
 
 
 @router.post("/deals", status_code=201)
-async def create_deal(body: DealIn, user: UserDep):
-    return await _get_repo().create(user.tenant_id, body.model_dump())
+async def create_deal(
+    body: DealIn,
+    user: UserDep,
+):
+    return await _get_repo().create(
+        user.tenant_id,
+        body.model_dump(),
+    )
 
 
 @router.get("/deals/{deal_id}")
-async def get_deal(deal_id: str, user: UserDep):
-    d = await _get_repo().get(user.tenant_id, deal_id)
-    if not d:
-        raise HTTPException(404, "Deal not found")
-    return d
+async def get_deal(
+    deal_id: str,
+    user: UserDep,
+):
+    deal = await _get_repo().get(
+        user.tenant_id,
+        deal_id,
+    )
+
+    if not deal:
+        raise HTTPException(
+            status_code=404,
+            detail="Deal not found",
+        )
+
+    return deal
 
 
 @router.patch("/deals/{deal_id}")
-async def update_deal(deal_id: str, body: DealPatch, user: UserDep):
-    d = await _get_repo().update(user.tenant_id, deal_id, body.model_dump())
-    if not d:
-        raise HTTPException(404, "Deal not found")
-    return d
+async def update_deal(
+    deal_id: str,
+    body: DealPatch,
+    user: UserDep,
+):
+    deal = await _get_repo().update(
+        user.tenant_id,
+        deal_id,
+        body.model_dump(exclude_unset=True),
+    )
+
+    if not deal:
+        raise HTTPException(
+            status_code=404,
+            detail="Deal not found",
+        )
+
+    return deal
 
 
 @router.delete("/deals/{deal_id}", status_code=204)
-async def delete_deal(deal_id: str, user: UserDep):
-    ok = await _get_repo().delete(user.tenant_id, deal_id)
+async def delete_deal(
+    deal_id: str,
+    user: UserDep,
+):
+    ok = await _get_repo().delete(
+        user.tenant_id,
+        deal_id,
+    )
+
     if not ok:
-        raise HTTPException(404, "Deal not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Deal not found",
+        )
+
     return None
 
 
 @router.get("/summary")
 async def pipeline_summary(user: UserDep):
     pipeline = [
-        {"$match": {"tenant_id": user.tenant_id}},
-        {"$group": {
-            "_id": "$stage",
-            "count": {"$sum": 1},
-            "value": {"$sum": "$value"},
-        }},
+        {
+            "$match": {
+                "tenant_id": user.tenant_id,
+            }
+        },
+        {
+            "$group": {
+                "_id": "$stage",
+                "count": {"$sum": 1},
+                "value": {"$sum": "$value"},
+            }
+        },
     ]
-    rows = await _get_repo().aggregate(pipeline)
-    by_stage = {r["_id"]: {"count": r["count"], "value": r["value"]} for r in rows}
-    return {"stages": DEFAULT_STAGES, "by_stage": by_stage}
+
+    rows = await _get_repo().aggregate(
+    user.tenant_id,
+    pipeline,
+)
+
+    by_stage = {
+        row["_id"]: {
+            "count": row["count"],
+            "value": row["value"],
+        }
+        for row in rows
+    }
+
+    return {
+        "stages": DEFAULT_STAGES,
+        "by_stage": by_stage,
+    }

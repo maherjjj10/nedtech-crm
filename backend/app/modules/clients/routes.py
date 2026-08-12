@@ -1,14 +1,24 @@
 """Clients module."""
+
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from app.core.database import get_db
-from app.core.deps import UserDep
+from app.core.deps import UserDep, require_permission
 from app.core.module_registry import module_gate
 from app.core.repository import BaseRepository, new_id, utcnow_iso
 
-router = APIRouter(prefix="/clients", tags=["Clients"], dependencies=[Depends(module_gate("crm"))])
+
+router = APIRouter(
+    prefix="/clients",
+    tags=["Clients"],
+    dependencies=[
+        Depends(module_gate("crm")),
+        Depends(require_permission("crm")),
+    ],
+)
 
 
 class ClientIn(BaseModel):
@@ -39,18 +49,19 @@ class ClientPatch(BaseModel):
     notes: Optional[str] = None
 
 
-def repo():
-    from app.modules.clients.routes import _repo
-    return _repo
-
-
 _repo: BaseRepository | None = None
 
 
 def _get_repo() -> BaseRepository:
     global _repo
+
     if _repo is None:
-        _repo = BaseRepository(get_db(), ClientIn, "clients")
+        _repo = BaseRepository(
+            get_db(),
+            ClientIn,
+            "clients",
+        )
+
     return _repo
 
 
@@ -64,50 +75,123 @@ async def list_clients(
     skip: int = 0,
 ):
     filters: dict = {}
+
     if q:
         filters["$or"] = [
-            {"name": {"$regex": q, "$options": "i"}},
-            {"email": {"$regex": q, "$options": "i"}},
-            {"company": {"$regex": q, "$options": "i"}},
+            {
+                "name": {
+                    "$regex": q,
+                    "$options": "i",
+                }
+            },
+            {
+                "email": {
+                    "$regex": q,
+                    "$options": "i",
+                }
+            },
+            {
+                "company": {
+                    "$regex": q,
+                    "$options": "i",
+                }
+            },
         ]
+
     if tag:
         filters["tags"] = tag
+
     if status_:
         filters["status"] = status_
-    return await _get_repo().list(user.tenant_id, filters, limit=limit, skip=skip)
+
+    return await _get_repo().list(
+        user.tenant_id,
+        filters,
+        limit=limit,
+        skip=skip,
+    )
 
 
 @router.post("", status_code=201)
-async def create_client(body: ClientIn, user: UserDep):
-    created = await _get_repo().create(user.tenant_id, body.model_dump())
-    await get_db().activities.insert_one({
-        "_id": new_id(), "id": new_id(), "tenant_id": user.tenant_id,
-        "type": "client_created", "entity_id": created["id"],
-        "message": f"Client '{created['name']}' created", "actor": user.email,
-        "created_at": utcnow_iso(),
-    })
+async def create_client(
+    body: ClientIn,
+    user: UserDep,
+):
+    created = await _get_repo().create(
+        user.tenant_id,
+        body.model_dump(),
+    )
+
+    await get_db().activities.insert_one(
+        {
+            "_id": new_id(),
+            "id": new_id(),
+            "tenant_id": user.tenant_id,
+            "type": "client_created",
+            "entity_id": created["id"],
+            "message": f"Client '{created['name']}' created",
+            "actor": user.email,
+            "created_at": utcnow_iso(),
+        }
+    )
+
     return created
 
 
 @router.get("/{client_id}")
-async def get_client(client_id: str, user: UserDep):
-    c = await _get_repo().get(user.tenant_id, client_id)
-    if not c:
-        raise HTTPException(404, "Client not found")
-    return c
+async def get_client(
+    client_id: str,
+    user: UserDep,
+):
+    client = await _get_repo().get(
+        user.tenant_id,
+        client_id,
+    )
+
+    if not client:
+        raise HTTPException(
+            status_code=404,
+            detail="Client not found",
+        )
+
+    return client
 
 
 @router.patch("/{client_id}")
-async def update_client(client_id: str, body: ClientPatch, user: UserDep):
-    c = await _get_repo().update(user.tenant_id, client_id, body.model_dump())
-    if not c:
-        raise HTTPException(404, "Client not found")
-    return c
+async def update_client(
+    client_id: str,
+    body: ClientPatch,
+    user: UserDep,
+):
+    client = await _get_repo().update(
+        user.tenant_id,
+        client_id,
+        body.model_dump(exclude_unset=True),
+    )
+
+    if not client:
+        raise HTTPException(
+            status_code=404,
+            detail="Client not found",
+        )
+
+    return client
 
 
 @router.delete("/{client_id}", status_code=204)
-async def delete_client(client_id: str, user: UserDep):
-    ok = await _get_repo().delete(user.tenant_id, client_id)
+async def delete_client(
+    client_id: str,
+    user: UserDep,
+):
+    ok = await _get_repo().delete(
+        user.tenant_id,
+        client_id,
+    )
+
     if not ok:
-        raise HTTPException(404, "Client not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Client not found",
+        )
+
     return None

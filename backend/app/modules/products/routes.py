@@ -1,14 +1,24 @@
 """Products & Services."""
+
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db
-from app.core.deps import UserDep
+from app.core.deps import UserDep, require_permission
 from app.core.module_registry import module_gate
 from app.core.repository import BaseRepository
 
-router = APIRouter(prefix="/products", tags=["Products"], dependencies=[Depends(module_gate("products"))])
+
+router = APIRouter(
+    prefix="/products",
+    tags=["Products"],
+    dependencies=[
+        Depends(module_gate("products")),
+        Depends(require_permission("products")),
+    ],
+)
 
 
 class ProductIn(BaseModel):
@@ -28,31 +38,73 @@ class ProductIn(BaseModel):
 _repo: BaseRepository | None = None
 
 
-def _get_repo():
+def _get_repo() -> BaseRepository:
     global _repo
+
     if _repo is None:
-        _repo = BaseRepository(get_db(), ProductIn, "products")
+        _repo = BaseRepository(
+            get_db(),
+            ProductIn,
+            "products",
+        )
+
     return _repo
 
 
 @router.get("")
-async def list_products(user: UserDep, kind: str | None = None):
-    f = {"kind": kind} if kind else {}
-    return await _get_repo().list(user.tenant_id, f, limit=500)
+async def list_products(
+    user: UserDep,
+    kind: str | None = None,
+):
+    filters = {"kind": kind} if kind else {}
+
+    return await _get_repo().list(
+        user.tenant_id,
+        filters,
+        limit=500,
+    )
 
 
 @router.post("", status_code=201)
-async def create_product(body: ProductIn, user: UserDep):
-    return await _get_repo().create(user.tenant_id, body.model_dump())
+async def create_product(
+    body: ProductIn,
+    user: UserDep,
+):
+    return await _get_repo().create(
+        user.tenant_id,
+        body.model_dump(),
+    )
 
 
 @router.patch("/{pid}")
-async def update_product(pid: str, body: ProductIn, user: UserDep):
-    d = await _get_repo().update(user.tenant_id, pid, body.model_dump())
-    if not d: raise HTTPException(404, "Product not found")
-    return d
+async def update_product(
+    pid: str,
+    body: ProductIn,
+    user: UserDep,
+):
+    product = await _get_repo().update(
+        user.tenant_id,
+        pid,
+        body.model_dump(),
+    )
+
+    if not product:
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found",
+        )
+
+    return product
 
 
 @router.delete("/{pid}", status_code=204)
-async def delete_product(pid: str, user: UserDep):
-    await _get_repo().delete(user.tenant_id, pid)
+async def delete_product(
+    pid: str,
+    user: UserDep,
+):
+    await _get_repo().delete(
+        user.tenant_id,
+        pid,
+    )
+
+    return None

@@ -18,7 +18,7 @@ import { Textarea } from "../components/ui/textarea";
 import { api } from "../lib/apiClient";
 import { Plus, Search, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
-import { formatDate } from "../lib/format";
+import { useLanguage } from "../i18n";
 
 const EMPTY = {
   name: "",
@@ -35,6 +35,8 @@ const EMPTY = {
 };
 
 export default function Clients() {
+  const { t } = useLanguage();
+
   const [clients, setClients] = useState([]);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -45,6 +47,7 @@ export default function Clients() {
     const { data } = await api.get("/clients", {
       params: search ? { q: search } : {},
     });
+
     setClients(data);
   }, []);
 
@@ -88,49 +91,59 @@ export default function Clients() {
         await api.post("/clients", payload);
       }
 
-      toast.success(editing ? "Client updated" : "Client created");
+      toast.success(
+        editing ? t("clientUpdated") : t("clientCreated")
+      );
+
       setOpen(false);
       load(q);
     } catch (err) {
       toast.error(
-        err?.response?.data?.detail || "Save failed"
+        err?.response?.data?.detail || t("saveFailed")
       );
     }
   };
 
   const remove = async (id) => {
-    if (!window.confirm("Delete this client?")) return;
+    if (!window.confirm(t("deleteClientConfirm"))) return;
 
-    await api.delete(`/clients/${id}`);
+    try {
+      await api.delete(`/clients/${id}`);
 
-    toast.success("Deleted");
-    load(q);
+      toast.success(t("deleted"));
+      load(q);
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.detail || t("deleteFailed")
+      );
+    }
   };
 
   return (
     <>
       <PageHeader
-        title="Clients"
-        description="Everyone your business talks to — contacts, tags, notes."
+        title={t("clients")}
+        description={t("clientsDescription")}
         right={
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button onClick={openNew}>
                 <Plus className="h-4 w-4 mr-2" />
-                New client
+                {t("newClient")}
               </Button>
             </DialogTrigger>
 
             <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
                 <DialogTitle>
-                  {editing ? "Edit client" : "New client"}
+                  {editing ? t("editClient") : t("newClient")}
                 </DialogTitle>
               </DialogHeader>
 
               <form onSubmit={save} className="space-y-4">
+
                 <div className="space-y-2">
-                  <Label>Name</Label>
+                  <Label>{t("name")}</Label>
                   <Input
                     value={form.name}
                     onChange={(e) =>
@@ -145,7 +158,7 @@ export default function Clients() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label>{t("email")}</Label>
                   <Input
                     type="email"
                     value={form.email || ""}
@@ -159,7 +172,7 @@ export default function Clients() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Phone</Label>
+                  <Label>{t("phone")}</Label>
                   <Input
                     value={form.phone || ""}
                     onChange={(e) =>
@@ -172,7 +185,7 @@ export default function Clients() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Company</Label>
+                  <Label>{t("company")}</Label>
                   <Input
                     value={form.company || ""}
                     onChange={(e) =>
@@ -186,7 +199,7 @@ export default function Clients() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Contact person</Label>
+                  <Label>{t("contactPerson")}</Label>
                   <Input
                     value={form.contact_person || ""}
                     onChange={(e) =>
@@ -200,7 +213,7 @@ export default function Clients() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>VAT number</Label>
+                  <Label>{t("vatNumber")}</Label>
                   <Input
                     value={form.vat_number || ""}
                     onChange={(e) =>
@@ -214,7 +227,7 @@ export default function Clients() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Website</Label>
+                  <Label>{t("website")}</Label>
                   <Input
                     value={form.website || ""}
                     onChange={(e) =>
@@ -227,7 +240,7 @@ export default function Clients() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Address</Label>
+                  <Label>{t("address")}</Label>
                   <Input
                     value={form.address || ""}
                     onChange={(e) =>
@@ -241,7 +254,7 @@ export default function Clients() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Tags (comma separated)</Label>
+                  <Label>{t("tagsCommaSeparated")}</Label>
                   <Input
                     value={
                       Array.isArray(form.tags)
@@ -258,7 +271,7 @@ export default function Clients() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Notes</Label>
+                  <Label>{t("notes")}</Label>
                   <Textarea
                     value={form.notes || ""}
                     onChange={(e) =>
@@ -272,9 +285,10 @@ export default function Clients() {
 
                 <DialogFooter>
                   <Button type="submit">
-                    {editing ? "Update" : "Create"}
+                    {editing ? t("update") : t("create")}
                   </Button>
                 </DialogFooter>
+
               </form>
             </DialogContent>
           </Dialog>
@@ -282,11 +296,13 @@ export default function Clients() {
       />
 
       <div className="p-8 space-y-6">
+
+        {/* Search */}
         <div className="relative max-w-md">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
 
           <Input
-            placeholder="Search clients…"
+            placeholder={t("searchClients")}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) =>
@@ -297,20 +313,22 @@ export default function Clients() {
           />
         </div>
 
+        {/* Clients table */}
         <Card className="border-border/70 overflow-hidden">
+
           <div className="grid grid-cols-12 px-6 py-3 border-b border-border n-overline">
-            <div className="col-span-4">Name</div>
-            <div className="col-span-3">Company</div>
-            <div className="col-span-3">Contact</div>
-            <div className="col-span-1">Status</div>
+            <div className="col-span-4">{t("name")}</div>
+            <div className="col-span-3">{t("company")}</div>
+            <div className="col-span-3">{t("contact")}</div>
+            <div className="col-span-1">{t("status")}</div>
             <div className="col-span-1 text-right">
-              Actions
+              {t("actions")}
             </div>
           </div>
 
           {clients.length === 0 && (
             <div className="p-8 text-center text-sm text-muted-foreground">
-              No clients yet. Create your first one.
+              {t("noClientsYet")}
             </div>
           )}
 
@@ -332,13 +350,13 @@ export default function Clients() {
                 <div className="flex gap-1 mt-1 flex-wrap">
                   {(c.tags || [])
                     .slice(0, 3)
-                    .map((t) => (
+                    .map((tag) => (
                       <Badge
-                        key={t}
+                        key={tag}
                         variant="secondary"
                         className="text-[10px]"
                       >
-                        {t}
+                        {tag}
                       </Badge>
                     ))}
                 </div>
@@ -360,7 +378,9 @@ export default function Clients() {
                       : "outline"
                   }
                 >
-                  {c.status}
+                  {c.status === "active"
+                    ? t("active")
+                    : t("inactive")}
                 </Badge>
               </div>
 
@@ -370,6 +390,7 @@ export default function Clients() {
                   size="icon"
                   onClick={() => openEdit(c)}
                   data-testid={`edit-client-${c.id}`}
+                  title={t("edit")}
                 >
                   <Pencil className="h-4 w-4" />
                 </Button>
@@ -379,12 +400,14 @@ export default function Clients() {
                   size="icon"
                   onClick={() => remove(c.id)}
                   data-testid={`delete-client-${c.id}`}
+                  title={t("delete")}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </div>
           ))}
+
         </Card>
       </div>
     </>

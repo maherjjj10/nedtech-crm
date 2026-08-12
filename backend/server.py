@@ -16,7 +16,6 @@ from app.core.config import settings
 from app.core.database import close_db, ensure_indexes
 from app.core.module_registry import list_modules
 from app.core.seed import seed_platform_owner
-from app.modules.contracts.seed_templates import seed_system_templates
 from app.modules.registry import SYSTEM_ROUTERS, MODULES, PUBLIC_ROUTERS  # noqa: F401  (side-effect: registers modules)
 from app.modules.billing.webhook import webhook_router as stripe_webhook_router
 from app.modules.platform.routes import router as platform_router
@@ -29,9 +28,6 @@ logger = logging.getLogger("nedtech")
 async def lifespan(app: FastAPI):
     await ensure_indexes()
     await seed_platform_owner()
-    added = await seed_system_templates()
-    if added:
-        logger.info(f"Seeded {added} system contract templates.")
     logger.info("NED Tech CRM ready.")
     yield
     await close_db()
