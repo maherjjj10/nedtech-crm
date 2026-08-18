@@ -20,6 +20,7 @@ import {
   X,
   Shield,
   User,
+  Truck,
 } from "lucide-react";
 
 import { Button } from "../ui/button";
@@ -30,9 +31,12 @@ import { initials } from "../../lib/format";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useLanguage } from "../../i18n";
 
+
 /*
- * Every navigation item has a translation key.
- * Permission controls whether the item is visible.
+ * Navigation
+ *
+ * labelKey MUST match the translation key
+ * exactly.
  */
 const NAV = [
   {
@@ -43,6 +47,7 @@ const NAV = [
     end: true,
     permission: "dashboard",
   },
+
   {
     to: "/clients",
     labelKey: "clients",
@@ -50,6 +55,7 @@ const NAV = [
     testid: "nav-clients",
     permission: "crm",
   },
+
   {
     to: "/pipeline",
     labelKey: "pipeline",
@@ -57,6 +63,7 @@ const NAV = [
     testid: "nav-pipeline",
     permission: "sales",
   },
+
   {
     to: "/tasks",
     labelKey: "tasks",
@@ -64,6 +71,7 @@ const NAV = [
     testid: "nav-tasks",
     permission: "tasks",
   },
+
   {
     to: "/finance",
     labelKey: "finance",
@@ -71,6 +79,7 @@ const NAV = [
     testid: "nav-finance",
     permission: "finance",
   },
+
   {
     to: "/contracts",
     labelKey: "contracts",
@@ -78,6 +87,7 @@ const NAV = [
     testid: "nav-contracts",
     permission: "contracts",
   },
+
   {
     to: "/products",
     labelKey: "products",
@@ -85,6 +95,27 @@ const NAV = [
     testid: "nav-products",
     permission: "products",
   },
+
+  /*
+   * SUPPLIERS
+   *
+   * IMPORTANT:
+   * Route = /suppliers
+   * Translation key = suppliers
+   *
+   * This allows:
+   * English  -> Suppliers
+   * Dutch    -> Leveranciers
+   * German   -> Lieferanten
+   */
+  {
+    to: "/suppliers",
+    labelKey: "suppliers",
+    icon: Truck,
+    testid: "nav-suppliers",
+    permission: "crm",
+  },
+
   {
     to: "/employees",
     labelKey: "employees",
@@ -92,6 +123,7 @@ const NAV = [
     testid: "nav-employees",
     permission: "hr",
   },
+
   {
     to: "/ai",
     labelKey: "aiAssistant",
@@ -99,6 +131,7 @@ const NAV = [
     testid: "nav-ai",
     permission: "ai",
   },
+
   {
     to: "/billing",
     labelKey: "billing",
@@ -106,6 +139,7 @@ const NAV = [
     testid: "nav-billing",
     permission: "billing",
   },
+
   {
     to: "/profile",
     labelKey: "profile",
@@ -113,6 +147,7 @@ const NAV = [
     testid: "nav-profile",
     permission: "profile",
   },
+
   {
     to: "/settings",
     labelKey: "settings",
@@ -121,6 +156,7 @@ const NAV = [
     permission: "settings",
   },
 ];
+
 
 function SidebarContent({ onNavigate }) {
   const { theme, toggle } = useTheme();
@@ -137,14 +173,18 @@ function SidebarContent({ onNavigate }) {
 
   const location = useLocation();
 
-  /*
-   * Only show navigation items that the current
-   * user is actually allowed to access.
-   */
-  const navItems = NAV.filter((item) => can(item.permission));
 
   /*
-   * Platform admin gets the platform administration area.
+   * Only show navigation items that
+   * the current user has permission to access.
+   */
+  const navItems = NAV.filter((item) =>
+    can(item.permission)
+  );
+
+
+  /*
+   * Platform administration
    */
   if (isPlatformAdmin) {
     navItems.push({
@@ -156,11 +196,18 @@ function SidebarContent({ onNavigate }) {
     });
   }
 
+
   return (
     <div className="flex flex-col h-full">
-      {/* Workspace header */}
+
+      {/* =========================================
+          WORKSPACE HEADER
+      ========================================= */}
+
       <div className="border-b border-border px-4 py-4">
+
         <div className="flex items-center gap-3">
+
           <div
             className="h-9 w-9 rounded-md bg-foreground text-background flex items-center justify-center font-black"
             data-testid="brand-mark"
@@ -168,7 +215,9 @@ function SidebarContent({ onNavigate }) {
             N
           </div>
 
+
           <div className="leading-tight min-w-0">
+
             <div
               className="text-sm font-semibold truncate"
               data-testid="workspace-name"
@@ -176,28 +225,54 @@ function SidebarContent({ onNavigate }) {
               {tenant?.name || t("workspace")}
             </div>
 
+
             <div className="n-overline text-[10px]">
               NED Tech CRM
             </div>
+
           </div>
+
         </div>
+
       </div>
 
-      {/* Navigation */}
+
+      {/* =========================================
+          NAVIGATION
+      ========================================= */}
+
       <nav className="flex-1 px-3 py-4 space-y-1 n-scroll overflow-y-auto">
+
         {navItems.map((n) => {
+
           const Icon = n.icon;
+
 
           const active = n.end
             ? location.pathname === n.to
             : (
                 location.pathname === n.to ||
-                location.pathname.startsWith(n.to + "/")
+                location.pathname.startsWith(
+                  n.to + "/"
+                )
               );
 
+
+          /*
+           * Translation
+           *
+           * Example:
+           *
+           * suppliers
+           *
+           * EN -> Suppliers
+           * NL -> Leveranciers
+           * DE -> Lieferanten
+           */
           const label = n.labelKey
             ? t(n.labelKey)
             : n.fallbackLabel;
+
 
           return (
             <NavLink
@@ -211,24 +286,45 @@ function SidebarContent({ onNavigate }) {
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               }`}
             >
+
               <Icon className="h-4 w-4 shrink-0" />
-              <span>{label}</span>
+
+              <span>
+                {label}
+              </span>
+
             </NavLink>
           );
+
         })}
+
       </nav>
 
-      {/* User footer */}
+
+      {/* =========================================
+          USER FOOTER
+      ========================================= */}
+
       <div className="border-t border-border p-3 space-y-3">
+
         {/* User information */}
+
         <div className="flex items-center gap-3 px-2 py-2">
+
           <Avatar className="h-8 w-8">
+
             <AvatarFallback className="text-xs bg-foreground text-background">
-              {initials(user?.name || user?.email)}
+              {initials(
+                user?.name ||
+                user?.email
+              )}
             </AvatarFallback>
+
           </Avatar>
 
+
           <div className="flex-1 min-w-0">
+
             <div
               className="text-sm font-medium truncate"
               data-testid="user-name"
@@ -236,19 +332,31 @@ function SidebarContent({ onNavigate }) {
               {user?.name}
             </div>
 
+
             <div className="text-xs text-muted-foreground truncate">
               {user?.email}
             </div>
+
           </div>
+
         </div>
 
-        {/* Language */}
+
+        {/* =========================================
+            LANGUAGE
+        ========================================= */}
+
         <div className="w-full">
           <LanguageSwitcher />
         </div>
 
-        {/* Theme + Logout */}
+
+        {/* =========================================
+            THEME + LOGOUT
+        ========================================= */}
+
         <div className="flex gap-2">
+
           <Button
             variant="outline"
             size="sm"
@@ -256,18 +364,24 @@ function SidebarContent({ onNavigate }) {
             onClick={toggle}
             data-testid="toggle-theme"
           >
+
             {theme === "dark" ? (
               <Sun className="h-4 w-4" />
             ) : (
               <Moon className="h-4 w-4" />
             )}
 
+
             <span className="ml-2 text-xs">
+
               {theme === "dark"
                 ? "Light"
                 : "Dark"}
+
             </span>
+
           </Button>
+
 
           <Button
             variant="ghost"
@@ -276,30 +390,47 @@ function SidebarContent({ onNavigate }) {
             data-testid="logout-btn"
             title={t("logout")}
           >
+
             <LogOut className="h-4 w-4" />
+
           </Button>
+
         </div>
+
       </div>
+
     </div>
   );
 }
 
+
 export default function Sidebar() {
+
   const [open, setOpen] = useState(false);
+
 
   return (
     <>
-      {/* Mobile top bar */}
+
+      {/* =========================================
+          MOBILE TOP BAR
+      ========================================= */}
+
       <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+
         <div className="flex items-center gap-2">
+
           <div className="h-8 w-8 rounded-md bg-foreground text-background flex items-center justify-center font-black text-sm">
             N
           </div>
 
+
           <div className="text-sm font-semibold">
             NED Tech CRM
           </div>
+
         </div>
+
 
         <Button
           variant="ghost"
@@ -307,49 +438,83 @@ export default function Sidebar() {
           onClick={() => setOpen(true)}
           data-testid="mobile-menu-btn"
         >
+
           <Menu className="h-5 w-5" />
+
         </Button>
+
       </div>
 
-      {/* Desktop sidebar */}
+
+      {/* =========================================
+          DESKTOP SIDEBAR
+      ========================================= */}
+
       <aside
         className="hidden md:flex flex-col w-64 shrink-0 border-r border-border bg-card h-screen"
         data-testid="app-sidebar"
       >
+
         <SidebarContent />
+
       </aside>
 
-      {/* Mobile sidebar */}
+
+      {/* =========================================
+          MOBILE SIDEBAR
+      ========================================= */}
+
       {open && (
         <>
+
+          {/* Overlay */}
+
           <div
             className="md:hidden fixed inset-0 z-50 bg-black/60"
             onClick={() => setOpen(false)}
           />
 
+
+          {/* Sidebar */}
+
           <aside
             className="md:hidden fixed inset-y-0 left-0 z-50 flex flex-col w-72 border-r border-border bg-card animate-in slide-in-from-left duration-200"
             data-testid="mobile-sidebar"
           >
+
+            {/* Close button */}
+
             <div className="flex justify-end p-2">
+
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setOpen(false)}
                 data-testid="mobile-close-btn"
               >
+
                 <X className="h-5 w-5" />
+
               </Button>
+
             </div>
 
+
             <div className="flex-1 min-h-0">
+
               <SidebarContent
-                onNavigate={() => setOpen(false)}
+                onNavigate={() =>
+                  setOpen(false)
+                }
               />
+
             </div>
+
           </aside>
+
         </>
       )}
+
     </>
   );
 }
