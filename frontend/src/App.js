@@ -27,6 +27,7 @@ import InviteAccept from "./pages/InviteAccept";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
 import ClientDetail from "./pages/ClientDetail";
+import Suppliers from "./pages/Suppliers";
 import Pipeline from "./pages/Pipeline";
 import Tasks from "./pages/Tasks";
 import Finance from "./pages/Finance";
@@ -73,15 +74,6 @@ function Guard({ children }) {
 
 /*
  * Permission guard.
- *
- * Example:
- *
- * <PermissionGuard module="finance">
- *   <Finance />
- * </PermissionGuard>
- *
- * If the employee doesn't have permission,
- * he is redirected to Dashboard.
  */
 function PermissionGuard({
   module,
@@ -93,7 +85,6 @@ function PermissionGuard({
     can,
   } = useAuth();
 
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
@@ -101,7 +92,6 @@ function PermissionGuard({
       </div>
     );
   }
-
 
   if (!user) {
     return (
@@ -112,7 +102,6 @@ function PermissionGuard({
     );
   }
 
-
   if (!can(module)) {
     return (
       <Navigate
@@ -121,7 +110,6 @@ function PermissionGuard({
       />
     );
   }
-
 
   return children;
 }
@@ -136,7 +124,6 @@ function PlatformGuard({ children }) {
     loading,
   } = useAuth();
 
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
@@ -144,7 +131,6 @@ function PlatformGuard({ children }) {
       </div>
     );
   }
-
 
   if (!user) {
     return (
@@ -155,11 +141,9 @@ function PlatformGuard({ children }) {
     );
   }
 
-
   const isPlatformAdmin =
     user.platform_role === "platform_owner" ||
     user.platform_role === "super_admin";
-
 
   if (!isPlatformAdmin) {
     return (
@@ -169,7 +153,6 @@ function PlatformGuard({ children }) {
       />
     );
   }
-
 
   return children;
 }
@@ -226,7 +209,12 @@ function App() {
 
             <Route
               path="/billing/cancel"
-              element={<Navigate to="/billing" replace />}
+              element={
+                <Navigate
+                  to="/billing"
+                  replace
+                />
+              }
             />
 
             <Route
@@ -273,6 +261,19 @@ function App() {
                 }
               />
 
+
+              {/* Suppliers */}
+              <Route
+                path="/suppliers"
+                element={
+                  <PermissionGuard module="crm">
+                    <Suppliers />
+                  </PermissionGuard>
+                }
+              />
+
+
+              {/* Client Detail */}
               <Route
                 path="/clients/:id"
                 element={

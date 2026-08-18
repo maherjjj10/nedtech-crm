@@ -643,6 +643,80 @@ otherSessions: "andere Sitzungen",
   platformSearch_users: "Benutzer",
   platformSearch_invoices: "Rechnungen",
   platformSearch_clients: "Kunden",
+    // Suppliers
+  suppliers: "Lieferanten",
+  suppliersDescription:
+    "Verwalten Sie Ihre Lieferanten und Lieferanteninformationen.",
+
+  newSupplier: "Neuer Lieferant",
+  editSupplier: "Lieferant bearbeiten",
+  supplierDetails: "Lieferantendetails",
+
+  supplierName: "Name",
+  company: "Unternehmen",
+  contactPerson: "Ansprechpartner",
+  email: "E-Mail",
+  phone: "Telefon",
+
+  vatNumber: "USt-IdNr.",
+  kvkNumber: "Handelsregisternummer",
+
+  address: "Adresse",
+  postalCode: "Postleitzahl",
+  city: "Ort",
+  country: "Land",
+
+  iban: "IBAN",
+  website: "Website",
+
+  status: "Status",
+  active: "Aktiv",
+  inactive: "Inaktiv",
+
+  notes: "Notizen",
+  contact: "Kontakt",
+  vatKvk: "USt. / Handelsregisternummer",
+  vatShort: "USt.",
+  kvkShort: "Handelsregisternummer",
+  actions: "Aktionen",
+
+  searchSuppliers: "Lieferanten suchen...",
+  noSuppliers: "Noch keine Lieferanten.",
+
+  view: "Ansehen",
+  edit: "Bearbeiten",
+  delete: "Löschen",
+  close: "Schließen",
+
+  createSupplier: "Lieferanten anlegen",
+  updateSupplier: "Lieferanten aktualisieren",
+
+  supplierCreated:
+    "Lieferant erfolgreich angelegt",
+
+  supplierUpdated:
+    "Lieferant erfolgreich aktualisiert",
+
+  supplierDeleted:
+    "Lieferant gelöscht",
+
+  supplierLoadFailed:
+    "Lieferanten konnten nicht geladen werden",
+
+  supplierSaveFailed:
+    "Lieferant konnte nicht gespeichert werden",
+
+  supplierDeleteFailed:
+    "Lieferant konnte nicht gelöscht werden",
+
+  supplierDeleteConfirm:
+    "Möchten Sie diesen Lieferanten wirklich löschen?",
+
+  generalInformation: "Allgemeine Informationen",
+  businessInformation: "Unternehmensinformationen",
+  addressInformation: "Adressinformationen",
+  bankingInformation: "Bankverbindung",
+  suppliers: "Lieferanten",
 };
 
 export default de;

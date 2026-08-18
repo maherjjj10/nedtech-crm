@@ -641,6 +641,80 @@ otherSessions: "andere sessies",
   platformSearch_users: "Gebruikers",
   platformSearch_invoices: "Facturen",
   platformSearch_clients: "Klanten",
+    // Suppliers
+  suppliers: "Leveranciers",
+  suppliersDescription:
+    "Beheer uw leveranciers en leveranciersinformatie.",
+
+  newSupplier: "Nieuwe leverancier",
+  editSupplier: "Leverancier bewerken",
+  supplierDetails: "Leveranciersgegevens",
+
+  supplierName: "Naam",
+  company: "Bedrijf",
+  contactPerson: "Contactpersoon",
+  email: "E-mail",
+  phone: "Telefoon",
+
+  vatNumber: "BTW-nummer",
+  kvkNumber: "KVK-nummer",
+
+  address: "Adres",
+  postalCode: "Postcode",
+  city: "Plaats",
+  country: "Land",
+
+  iban: "IBAN",
+  website: "Website",
+
+  status: "Status",
+  active: "Actief",
+  inactive: "Inactief",
+
+  notes: "Notities",
+  contact: "Contact",
+  vatKvk: "BTW / KVK",
+  vatShort: "BTW",
+  kvkShort: "KVK",
+  actions: "Acties",
+
+  searchSuppliers: "Leveranciers zoeken...",
+  noSuppliers: "Nog geen leveranciers.",
+
+  view: "Bekijken",
+  edit: "Bewerken",
+  delete: "Verwijderen",
+  close: "Sluiten",
+
+  createSupplier: "Leverancier aanmaken",
+  updateSupplier: "Leverancier bijwerken",
+
+  supplierCreated:
+    "Leverancier succesvol aangemaakt",
+
+  supplierUpdated:
+    "Leverancier succesvol bijgewerkt",
+
+  supplierDeleted:
+    "Leverancier verwijderd",
+
+  supplierLoadFailed:
+    "Leveranciers konden niet worden geladen",
+
+  supplierSaveFailed:
+    "Leverancier kon niet worden opgeslagen",
+
+  supplierDeleteFailed:
+    "Leverancier kon niet worden verwijderd",
+
+  supplierDeleteConfirm:
+    "Weet u zeker dat u deze leverancier wilt verwijderen?",
+
+  generalInformation: "Algemene informatie",
+  businessInformation: "Bedrijfsinformatie",
+  addressInformation: "Adresgegevens",
+  bankingInformation: "Bankgegevens",
+  suppliers: "Leveranciers",
 };
 
 export default nl;

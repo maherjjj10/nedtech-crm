@@ -5,6 +5,7 @@ from app.modules.auth.routes import router as auth_router
 from app.modules.tenants.routes import router as tenants_router
 from app.modules.dashboard.routes import router as dashboard_router
 from app.modules.clients.routes import router as clients_router
+from app.modules.suppliers.routes import router as suppliers_router
 from app.modules.client_notes.routes import router as client_notes_router
 from app.modules.pipeline.routes import router as pipeline_router
 from app.modules.tasks.routes import router as tasks_router

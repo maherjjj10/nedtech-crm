@@ -639,6 +639,68 @@ otherSessions: "other sessions",
   platformSearch_users: "Users",
   platformSearch_invoices: "Invoices",
   platformSearch_clients: "Clients",
+    // Suppliers
+  suppliers: "Suppliers",
+  suppliersDescription: "Manage your suppliers and supplier information.",
+  newSupplier: "New supplier",
+  editSupplier: "Edit supplier",
+  supplierDetails: "Supplier details",
+
+  supplierName: "Name",
+  company: "Company",
+  contactPerson: "Contact person",
+  email: "Email",
+  phone: "Phone",
+
+  vatNumber: "VAT number",
+  kvkNumber: "Company registration number",
+
+  address: "Address",
+  postalCode: "Postal code",
+  city: "City",
+  country: "Country",
+
+  iban: "IBAN",
+  website: "Website",
+
+  status: "Status",
+  active: "Active",
+  inactive: "Inactive",
+
+  notes: "Notes",
+  contact: "Contact",
+  vatKvk: "VAT / Company registration number",
+  vatShort: "VAT",
+  kvkShort: "Company registration number",
+  actions: "Actions",
+
+  searchSuppliers: "Search suppliers...",
+  noSuppliers: "No suppliers yet.",
+
+  view: "View",
+  edit: "Edit",
+  delete: "Delete",
+  close: "Close",
+
+  createSupplier: "Create supplier",
+  updateSupplier: "Update supplier",
+
+  supplierCreated: "Supplier created successfully",
+  supplierUpdated: "Supplier updated successfully",
+  supplierDeleted: "Supplier deleted",
+
+  supplierLoadFailed: "Failed to load suppliers",
+  supplierSaveFailed: "Failed to save supplier",
+  supplierDeleteFailed: "Failed to delete supplier",
+
+  supplierDeleteConfirm:
+    "Are you sure you want to delete this supplier?",
+
+  generalInformation: "General information",
+  businessInformation: "Business information",
+  addressInformation: "Address information",
+  bankingInformation: "Banking information",
+  suppliers: "Suppliers",
 };
 
 export default en;
