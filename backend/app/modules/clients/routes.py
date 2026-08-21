@@ -31,7 +31,7 @@ class ClientIn(BaseModel):
     address: Optional[str] = None
     website: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
-    status: str = "active"  # active | inactive | prospect
+    status: str = "active"
     notes: Optional[str] = None
 
 
@@ -122,7 +122,10 @@ async def create_client(
         body.model_dump(),
     )
 
-    await get_db().activities.insert_one(
+    db = get_db()
+
+    # Activity
+    await db.activities.insert_one(
         {
             "_id": new_id(),
             "id": new_id(),
@@ -131,6 +134,24 @@ async def create_client(
             "entity_id": created["id"],
             "message": f"Client '{created['name']}' created",
             "actor": user.email,
+            "created_at": utcnow_iso(),
+        }
+    )
+
+    # Notification
+    await db.notifications.insert_one(
+        {
+            "_id": new_id(),
+            "id": new_id(),
+            "tenant_id": user.tenant_id,
+            "user_id": user.email,
+            "type": "client_created",
+            "title": "New client",
+            "message": f"{created['name']} was added to your clients.",
+            "entity_type": "client",
+            "entity_id": created["id"],
+            "url": f"/clients/{created['id']}",
+            "read": False,
             "created_at": utcnow_iso(),
         }
     )

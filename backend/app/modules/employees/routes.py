@@ -8,11 +8,13 @@ from pydantic import BaseModel, EmailStr, Field
 from app.core.database import get_db
 from app.core.deps import (
     UserDep,
-    require_permission,
-    require_tenant_role,
 )
 from app.core.module_registry import module_gate
-from app.core.repository import BaseRepository, utcnow_iso, new_id
+from app.core.repository import (
+    BaseRepository,
+    utcnow_iso,
+    new_id,
+)
 from app.core.roles import (
     normalize_permissions,
     normalize_tenant_role,
@@ -20,25 +22,35 @@ from app.core.roles import (
     effective_rank,
 )
 
+
 router = APIRouter(
     prefix="/employees",
     tags=["Employees"],
-    dependencies=[Depends(module_gate("hr"))],
+    dependencies=[
+        Depends(module_gate("hr")),
+    ],
 )
 
 
 class EmployeeIn(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
+    name: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+
     email: Optional[EmailStr] = None
+
     phone: Optional[str] = None
 
     # admin | manager | employee | viewer
     role: str = "employee"
 
     department: Optional[str] = None
+
     position: Optional[str] = None
 
     salary: float = 0
+
     currency: str = "USD"
 
     hire_date: Optional[str] = None
@@ -48,7 +60,9 @@ class EmployeeIn(BaseModel):
 
     avatar_url: Optional[str] = None
 
-    permissions: Optional[dict[str, bool]] = None
+    permissions: Optional[
+        dict[str, bool]
+    ] = None
 
 
 class EmployeePermissionsUpdate(BaseModel):
@@ -84,11 +98,16 @@ async def _get_employee(
             "tenant_id": tenant_id,
             "id": employee_id,
         },
-        {"_id": 0},
+        {
+            "_id": 0,
+        },
     )
 
 
-def _can_manage_employee(actor: UserDep, target: dict) -> bool:
+def _can_manage_employee(
+    actor: UserDep,
+    target: dict,
+) -> bool:
     """
     Determine whether the current user can manage another employee.
 
@@ -122,19 +141,25 @@ def _can_manage_employee(actor: UserDep, target: dict) -> bool:
 
     if actor.role == "manager":
         return (
-            target_role in {"employee", "viewer"}
+            target_role
+            in {
+                "employee",
+                "viewer",
+            }
             and actor_rank >= target_rank
         )
 
     return False
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Employees
-# ------------------------------------------------------------
+# ============================================================
 
 @router.get("")
-async def list_employees(user: UserDep):
+async def list_employees(
+    user: UserDep,
+):
     employees = await _get_repo().list(
         user.tenant_id,
         limit=500,
@@ -148,12 +173,56 @@ async def list_employees(user: UserDep):
     return employees
 
 
-@router.post("", status_code=201)
+# ============================================================
+# Assignable Employees
+#
+# Used by Tasks so users do not need HR permission just to
+# assign a task to an active employee.
+# ============================================================
+
+@router.get("/assignable")
+async def list_assignable_employees(
+    user: UserDep,
+):
+    employees = await get_db().employees.find(
+        {
+            "tenant_id": user.tenant_id,
+            "status": "active",
+        },
+        {
+            "_id": 0,
+            "id": 1,
+            "name": 1,
+            "email": 1,
+            "role": 1,
+            "department": 1,
+            "position": 1,
+        },
+    ).sort(
+        "name",
+        1,
+    ).to_list(
+        length=500
+    )
+
+    return employees
+
+
+# ============================================================
+# Create
+# ============================================================
+
+@router.post(
+    "",
+    status_code=201,
+)
 async def create_employee(
     body: EmployeeIn,
     user: UserDep,
 ):
-    role = normalize_tenant_role(body.role)
+    role = normalize_tenant_role(
+        body.role
+    )
 
     if role not in TENANT_ROLES:
         raise HTTPException(
@@ -161,17 +230,26 @@ async def create_employee(
             detail="Invalid employee role",
         )
 
-    # Only admins/platform admins can create managers/admins.
-    if role in {"admin", "manager"} and not user.is_platform_admin:
+    if (
+        role in {
+            "admin",
+            "manager",
+        }
+        and not user.is_platform_admin
+    ):
         if user.role != "admin":
             raise HTTPException(
                 status_code=403,
-                detail="Only admins can create admin or manager employees",
+                detail=(
+                    "Only admins can create "
+                    "admin or manager employees"
+                ),
             )
 
     data = body.model_dump()
 
     data["role"] = role
+
     data["permissions"] = normalize_permissions(
         data.get("permissions")
     )
@@ -181,6 +259,10 @@ async def create_employee(
         data,
     )
 
+
+# ============================================================
+# Update
+# ============================================================
 
 @router.patch("/{eid}")
 async def update_employee(
@@ -199,13 +281,21 @@ async def update_employee(
             detail="Employee not found",
         )
 
-    if not _can_manage_employee(user, employee):
+    if not _can_manage_employee(
+        user,
+        employee,
+    ):
         raise HTTPException(
             status_code=403,
-            detail="You do not have permission to manage this employee",
+            detail=(
+                "You do not have permission "
+                "to manage this employee"
+            ),
         )
 
-    role = normalize_tenant_role(body.role)
+    role = normalize_tenant_role(
+        body.role
+    )
 
     if role not in TENANT_ROLES:
         raise HTTPException(
@@ -213,19 +303,25 @@ async def update_employee(
             detail="Invalid employee role",
         )
 
-    # A manager cannot promote someone to manager/admin.
-    if user.role == "manager" and role not in {
-        "employee",
-        "viewer",
-    }:
+    if (
+        user.role == "manager"
+        and role not in {
+            "employee",
+            "viewer",
+        }
+    ):
         raise HTTPException(
             status_code=403,
-            detail="Managers cannot assign admin or manager roles",
+            detail=(
+                "Managers cannot assign "
+                "admin or manager roles"
+            ),
         )
 
     data = body.model_dump()
 
     data["role"] = role
+
     data["permissions"] = normalize_permissions(
         data.get("permissions")
     )
@@ -249,9 +345,9 @@ async def update_employee(
     return updated
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Permissions
-# ------------------------------------------------------------
+# ============================================================
 
 @router.get("/{eid}/permissions")
 async def get_employee_permissions(
@@ -269,10 +365,16 @@ async def get_employee_permissions(
             detail="Employee not found",
         )
 
-    if not _can_manage_employee(user, employee):
+    if not _can_manage_employee(
+        user,
+        employee,
+    ):
         raise HTTPException(
             status_code=403,
-            detail="You do not have permission to view this employee's permissions",
+            detail=(
+                "You do not have permission "
+                "to view this employee's permissions"
+            ),
         )
 
     return {
@@ -305,13 +407,22 @@ async def update_employee_permissions(
     if employee["id"] == user.user_id:
         raise HTTPException(
             status_code=403,
-            detail="You cannot change your own permissions",
+            detail=(
+                "You cannot change "
+                "your own permissions"
+            ),
         )
 
-    if not _can_manage_employee(user, employee):
+    if not _can_manage_employee(
+        user,
+        employee,
+    ):
         raise HTTPException(
             status_code=403,
-            detail="You do not have permission to change this employee's permissions",
+            detail=(
+                "You do not have permission "
+                "to change this employee's permissions"
+            ),
         )
 
     permissions = normalize_permissions(
@@ -357,7 +468,8 @@ async def update_employee_permissions(
             "entity_id": employee["id"],
             "message": (
                 f"Permissions updated for "
-                f"employee '{employee.get('name', employee['id'])}'"
+                f"employee "
+                f"'{employee.get('name', employee['id'])}'"
             ),
             "actor": user.email,
             "created_at": utcnow_iso(),
@@ -372,9 +484,9 @@ async def update_employee_permissions(
     }
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Role
-# ------------------------------------------------------------
+# ============================================================
 
 @router.patch("/{eid}/role")
 async def update_employee_role(
@@ -396,16 +508,27 @@ async def update_employee_role(
     if employee["id"] == user.user_id:
         raise HTTPException(
             status_code=403,
-            detail="You cannot change your own role",
+            detail=(
+                "You cannot change "
+                "your own role"
+            ),
         )
 
-    if not _can_manage_employee(user, employee):
+    if not _can_manage_employee(
+        user,
+        employee,
+    ):
         raise HTTPException(
             status_code=403,
-            detail="You do not have permission to change this employee's role",
+            detail=(
+                "You do not have permission "
+                "to change this employee's role"
+            ),
         )
 
-    role = normalize_tenant_role(body.role)
+    role = normalize_tenant_role(
+        body.role
+    )
 
     if role not in TENANT_ROLES:
         raise HTTPException(
@@ -413,16 +536,24 @@ async def update_employee_role(
             detail="Invalid employee role",
         )
 
-    if user.role == "manager" and role not in {
-        "employee",
-        "viewer",
-    }:
+    if (
+        user.role == "manager"
+        and role not in {
+            "employee",
+            "viewer",
+        }
+    ):
         raise HTTPException(
             status_code=403,
-            detail="Managers cannot assign admin or manager roles",
+            detail=(
+                "Managers cannot assign "
+                "admin or manager roles"
+            ),
         )
 
-    old_role = employee.get("role")
+    old_role = employee.get(
+        "role"
+    )
 
     await get_db().users.update_one(
         {
@@ -459,7 +590,8 @@ async def update_employee_role(
             "entity_id": employee["id"],
             "message": (
                 f"Role changed for "
-                f"employee '{employee.get('name', employee['id'])}'"
+                f"employee "
+                f"'{employee.get('name', employee['id'])}'"
             ),
             "actor": user.email,
             "created_at": utcnow_iso(),
@@ -474,11 +606,14 @@ async def update_employee_role(
     }
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Delete
-# ------------------------------------------------------------
+# ============================================================
 
-@router.delete("/{eid}", status_code=204)
+@router.delete(
+    "/{eid}",
+    status_code=204,
+)
 async def delete_employee(
     eid: str,
     user: UserDep,
@@ -500,10 +635,16 @@ async def delete_employee(
             detail="You cannot delete yourself",
         )
 
-    if not _can_manage_employee(user, employee):
+    if not _can_manage_employee(
+        user,
+        employee,
+    ):
         raise HTTPException(
             status_code=403,
-            detail="You do not have permission to delete this employee",
+            detail=(
+                "You do not have permission "
+                "to delete this employee"
+            ),
         )
 
     await _get_repo().delete(

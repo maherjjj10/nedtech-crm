@@ -1,62 +1,134 @@
-"""NED Tech CRM/ERP — FastAPI application entrypoint.
+"""NED Tech CRM/ERP — FastAPI application entrypoint."""
 
-Clean layered architecture:
-  - app.core.*   : configuration, database, security, deps, module registry
-  - app.modules.*: feature modules (each self-contained: routes + models)
-
-Every module registers a router; module_gate() enforces per-tenant toggles.
-"""
-
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, APIRouter
-from starlette.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
+import asyncio
 import logging
 
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, APIRouter
+
+from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+
 from app.core.config import settings
-from app.core.database import close_db, ensure_indexes
+from app.core.database import (
+    close_db,
+    ensure_indexes,
+)
 from app.core.module_registry import list_modules
 from app.core.seed import seed_platform_owner
 
+from app.core.invoice_scheduler import (
+    invoice_scheduler,
+)
+
 from app.modules.registry import (
     SYSTEM_ROUTERS,
-    MODULES,
     PUBLIC_ROUTERS,
 )
 
 from app.modules.billing.webhook import (
-    webhook_router as stripe_webhook_router
+    webhook_router as stripe_webhook_router,
 )
 
 from app.modules.platform.routes import (
-    router as platform_router
+    router as platform_router,
 )
 
-# Suppliers
 from app.modules.suppliers.routes import (
-    router as suppliers_router
+    router as suppliers_router,
 )
 
+
+# ============================================================
+# LOGGING
+# ============================================================
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format=(
+        "%(asctime)s - "
+        "%(name)s - "
+        "%(levelname)s - "
+        "%(message)s"
+    ),
 )
 
-logger = logging.getLogger("nedtech")
+logger = logging.getLogger(
+    "nedtech"
+)
 
+
+# ============================================================
+# APPLICATION LIFESPAN
+# ============================================================
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
+    # --------------------------------------------------------
+    # Database initialization
+    # --------------------------------------------------------
+
     await ensure_indexes()
+
+    # --------------------------------------------------------
+    # Platform initialization
+    # --------------------------------------------------------
+
     await seed_platform_owner()
 
-    logger.info("NED Tech CRM ready.")
+    # --------------------------------------------------------
+    # Invoice scheduler
+    # --------------------------------------------------------
 
-    yield
+    scheduler_task = asyncio.create_task(
+        invoice_scheduler()
+    )
 
-    await close_db()
+    logger.info(
+        "NED Tech CRM ready."
+    )
 
+    logger.info(
+        "Invoice scheduler started."
+    )
+
+    try:
+        yield
+
+    finally:
+
+        # ----------------------------------------------------
+        # Stop scheduler cleanly
+        # ----------------------------------------------------
+
+        scheduler_task.cancel()
+
+        try:
+            await scheduler_task
+
+        except asyncio.CancelledError:
+            pass
+
+        logger.info(
+            "Invoice scheduler stopped."
+        )
+
+        # ----------------------------------------------------
+        # Close database
+        # ----------------------------------------------------
+
+        await close_db()
+
+        logger.info(
+            "NED Tech CRM shutdown complete."
+        )
+
+
+# ============================================================
+# FASTAPI APPLICATION
+# ============================================================
 
 app = FastAPI(
     title="NED Tech CRM/ERP",
@@ -87,11 +159,11 @@ app.add_middleware(
 
 
 # ============================================================
-# API v1
+# API V1
 # ============================================================
 
 api_v1 = APIRouter(
-    prefix="/api/v1"
+    prefix="/api/v1",
 )
 
 
@@ -100,7 +172,9 @@ api_v1 = APIRouter(
 # ============================================================
 
 for router in SYSTEM_ROUTERS:
-    api_v1.include_router(router)
+    api_v1.include_router(
+        router
+    )
 
 
 # ============================================================
@@ -108,21 +182,13 @@ for router in SYSTEM_ROUTERS:
 # ============================================================
 
 for module in list_modules():
-    api_v1.include_router(module.router)
+    api_v1.include_router(
+        module.router
+    )
 
 
 # ============================================================
 # SUPPLIERS
-# ============================================================
-#
-# Suppliers are mounted directly under:
-#
-# /api/v1/suppliers
-#
-# NOT:
-#
-# /api/v1/clients/suppliers
-#
 # ============================================================
 
 api_v1.include_router(
@@ -131,11 +197,11 @@ api_v1.include_router(
 
 
 # ============================================================
-# CLIENT 360 SUBRESOURCES
+# CLIENT 360
 # ============================================================
 
 from app.modules.client_notes.routes import (
-    router as _client_notes_router
+    router as _client_notes_router,
 )
 
 api_v1.include_router(
@@ -173,21 +239,20 @@ api_v1.include_router(
 # ============================================================
 # PUBLIC ROUTERS
 # ============================================================
-#
-# Unauthenticated share-token routes for quotes/contracts.
-# ============================================================
 
 for router in PUBLIC_ROUTERS:
-    api_v1.include_router(router)
+    api_v1.include_router(
+        router
+    )
 
 
 # ============================================================
-# HEALTH
+# HEALTH CHECK
 # ============================================================
 
 @api_v1.get(
     "/health",
-    tags=["System"]
+    tags=["System"],
 )
 async def health():
     return {
@@ -203,14 +268,17 @@ async def health():
 
 @api_v1.get(
     "/modules",
-    tags=["System"]
+    tags=["System"],
 )
 async def modules_catalog():
+
     return [
         {
             "code": module.code,
             "name": module.name,
-            "default_enabled": module.default_enabled,
+            "default_enabled": (
+                module.default_enabled
+            ),
         }
         for module in list_modules()
     ]
@@ -228,12 +296,6 @@ app.include_router(
 # ============================================================
 # STRIPE WEBHOOK
 # ============================================================
-#
-# Must remain exactly:
-#
-# /api/stripe/webhook
-#
-# ============================================================
 
 app.include_router(
     stripe_webhook_router
@@ -245,9 +307,10 @@ app.include_router(
 # ============================================================
 
 @app.get(
-    "/api/"
+    "/api/",
 )
 async def root():
+
     return {
         "app": "NED Tech CRM",
         "api": "/api/v1",

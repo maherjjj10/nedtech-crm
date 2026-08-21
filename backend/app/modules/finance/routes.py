@@ -10,7 +10,11 @@ from pydantic import BaseModel, Field
 from app.core.database import get_db
 from app.core.deps import UserDep, require_permission
 from app.core.module_registry import module_gate
-from app.core.repository import BaseRepository
+from app.core.repository import (
+    BaseRepository,
+    new_id,
+    utcnow_iso,
+)
 
 
 router = APIRouter(
@@ -22,11 +26,16 @@ router = APIRouter(
 )
 
 
+# ============================================================
+# MODELS
+# ============================================================
+
+
 class LineItem(BaseModel):
     description: str
     quantity: float = 1
     unit_price: float = 0
-    tax_rate: float = 0  # percent
+    tax_rate: float = 0
 
 
 class InvoiceIn(BaseModel):
@@ -38,11 +47,11 @@ class InvoiceIn(BaseModel):
     currency: str = "USD"
     items: list[LineItem] = Field(default_factory=list)
     notes: Optional[str] = None
-    status: str = "draft"  # draft | sent | paid | overdue | cancelled
+    status: str = "draft"
 
 
 class QuoteIn(InvoiceIn):
-    status: str = "draft"  # draft | sent | accepted | rejected
+    status: str = "draft"
 
 
 class ExpenseIn(BaseModel):
@@ -54,6 +63,11 @@ class ExpenseIn(BaseModel):
     tax_rate: float = 0
     description: Optional[str] = None
     receipt_url: Optional[str] = None
+
+
+# ============================================================
+# REPOSITORIES
+# ============================================================
 
 
 _invoices: BaseRepository | None = None
@@ -100,6 +114,11 @@ def _r_e() -> BaseRepository:
     return _expenses
 
 
+# ============================================================
+# HELPERS
+# ============================================================
+
+
 def _totals(items: list[dict]) -> dict:
     subtotal = sum(
         i.get("quantity", 0) * i.get("unit_price", 0)
@@ -122,13 +141,51 @@ def _totals(items: list[dict]) -> dict:
     }
 
 
-# ─────────────────────────────────────────────
-# Invoices
-# ─────────────────────────────────────────────
+async def _create_invoice_notification(
+    *,
+    tenant_id: str,
+    user_id: str,
+    title: str,
+    message: str,
+    invoice_id: str,
+    notification_type: str,
+):
+    """
+    Create an in-app notification for an invoice.
+
+    Notifications are stored in the same collection used by
+    the global NotificationBell component.
+    """
+
+    notification_id = new_id()
+
+    await get_db().notifications.insert_one(
+        {
+            "_id": notification_id,
+            "id": notification_id,
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "title": title,
+            "message": message,
+            "type": notification_type,
+            "entity_type": "invoice",
+            "entity_id": invoice_id,
+            "url": "/finance",
+            "read": False,
+            "created_at": utcnow_iso(),
+        }
+    )
+
+
+# ============================================================
+# INVOICES
+# ============================================================
 
 
 @router.get("/invoices")
-async def list_invoices(user: UserDep):
+async def list_invoices(
+    user: UserDep,
+):
     docs = await _r_inv().list(
         user.tenant_id,
         limit=500,
@@ -142,7 +199,10 @@ async def list_invoices(user: UserDep):
     return docs
 
 
-@router.post("/invoices", status_code=201)
+@router.post(
+    "/invoices",
+    status_code=201,
+)
 async def create_invoice(
     body: InvoiceIn,
     user: UserDep,
@@ -163,6 +223,22 @@ async def create_invoice(
 
     doc["totals"] = _totals(
         doc.get("items", [])
+    )
+
+    total = doc["totals"]["total"]
+    currency = doc.get("currency") or "EUR"
+
+    await _create_invoice_notification(
+        tenant_id=user.tenant_id,
+        user_id=user.email,
+        title="Invoice created",
+        message=(
+            f"Invoice {doc['number']} "
+            f"was created for "
+            f"{currency} {total:,.2f}."
+        ),
+        invoice_id=doc["id"],
+        notification_type="invoice_created",
     )
 
     return doc
@@ -197,6 +273,17 @@ async def update_invoice(
     body: InvoiceIn,
     user: UserDep,
 ):
+    old_doc = await _r_inv().get(
+        user.tenant_id,
+        iid,
+    )
+
+    if not old_doc:
+        raise HTTPException(
+            status_code=404,
+            detail="Invoice not found",
+        )
+
     doc = await _r_inv().update(
         user.tenant_id,
         iid,
@@ -213,10 +300,78 @@ async def update_invoice(
         doc.get("items", [])
     )
 
+    old_status = old_doc.get("status")
+    new_status = doc.get("status")
+
+    if old_status != new_status:
+        total = doc["totals"]["total"]
+        currency = doc.get("currency") or "EUR"
+        number = doc.get("number") or iid
+
+        notification_map = {
+            "sent": (
+                "Invoice sent",
+                (
+                    f"Invoice {number} "
+                    f"has been marked as sent."
+                ),
+                "invoice_sent",
+            ),
+            "paid": (
+                "Invoice paid",
+                (
+                    f"Invoice {number} "
+                    f"has been marked as paid "
+                    f"({currency} {total:,.2f})."
+                ),
+                "invoice_paid",
+            ),
+            "overdue": (
+                "Invoice overdue",
+                (
+                    f"Invoice {number} "
+                    f"is now overdue "
+                    f"({currency} {total:,.2f})."
+                ),
+                "invoice_overdue",
+            ),
+            "cancelled": (
+                "Invoice cancelled",
+                (
+                    f"Invoice {number} "
+                    f"has been cancelled."
+                ),
+                "invoice_cancelled",
+            ),
+        }
+
+        notification = notification_map.get(
+            new_status
+        )
+
+        if notification:
+            (
+                title,
+                message,
+                notification_type,
+            ) = notification
+
+            await _create_invoice_notification(
+                tenant_id=user.tenant_id,
+                user_id=user.email,
+                title=title,
+                message=message,
+                invoice_id=doc["id"],
+                notification_type=notification_type,
+            )
+
     return doc
 
 
-@router.delete("/invoices/{iid}", status_code=204)
+@router.delete(
+    "/invoices/{iid}",
+    status_code=204,
+)
 async def delete_invoice(
     iid: str,
     user: UserDep,
@@ -227,6 +382,11 @@ async def delete_invoice(
     )
 
     return None
+
+
+# ============================================================
+# INVOICE PDF
+# ============================================================
 
 
 @router.get("/invoices/{iid}/pdf")
@@ -262,8 +422,6 @@ async def invoice_pdf(
             {"_id": 0},
         ) or {}
 
-    # Use the requested language when supplied; otherwise inherit
-    # the tenant/workspace language. Never force English by default.
     pdf_language = (
         lang
         or tenant.get("locale")
@@ -283,11 +441,16 @@ async def invoice_pdf(
         media_type="application/pdf",
         headers={
             "Content-Disposition": (
-                f'attachment; '
+                "attachment; "
                 f'filename="{invoice.get("number", "invoice")}.pdf"'
             )
         },
     )
+
+
+# ============================================================
+# INVOICE PDF RENDERER
+# ============================================================
 
 
 def _render_invoice_pdf(
@@ -317,10 +480,6 @@ def _render_invoice_pdf(
 
     buffer = BytesIO()
 
-    # ============================================================
-    # PAGE
-    # ============================================================
-
     PAGE_WIDTH, PAGE_HEIGHT = A4
 
     doc = SimpleDocTemplate(
@@ -334,20 +493,12 @@ def _render_invoice_pdf(
         author=tenant.get("name", "Company"),
     )
 
-    # ============================================================
-    # COLORS
-    # ============================================================
-
     DARK = colors.HexColor("#171717")
     TEXT = colors.HexColor("#242424")
     MUTED = colors.HexColor("#6B7280")
     BORDER = colors.HexColor("#E5E7EB")
     LIGHT = colors.HexColor("#F7F7F7")
     WHITE = colors.white
-
-    # ============================================================
-    # STYLES
-    # ============================================================
 
     base = getSampleStyleSheet()
 
@@ -444,13 +595,10 @@ def _render_invoice_pdf(
         textColor=DARK,
     )
 
-    # ============================================================
-    # HELPERS
-    # ============================================================
-
     def safe(value):
         if value is None:
             return ""
+
         return escape(str(value))
 
     def money(value):
@@ -463,96 +611,100 @@ def _render_invoice_pdf(
         for value in values:
             if value not in (None, ""):
                 return value
+
         return ""
 
-    # ============================================================
-    # PDF LANGUAGE
-    # ============================================================
-    locale = str(lang or tenant.get("locale") or tenant.get("language") or "en")
-    locale = locale.lower().replace("_", "-").split("-")[0]
+    locale = str(
+        lang
+        or tenant.get("locale")
+        or tenant.get("language")
+        or "en"
+    )
+
+    locale = (
+        locale
+        .lower()
+        .replace("_", "-")
+        .split("-")[0]
+    )
+
     if locale not in {"nl", "de", "en"}:
         locale = "en"
 
     L = {
-    "en": {
-        "invoice": "INVOICE",
-        "invoice_no": "Invoice #",
-        "issue_date": "Issue date",
-        "due_date": "Due date",
-        "bill_to": "BILL TO",
-        "description": "Description",
-        "qty": "Qty",
-        "unit_price": "Unit price",
-        "vat": "VAT",
-        "amount": "Amount",
-        "subtotal": "Subtotal",
-        "total": "TOTAL",
-        "payment": "PAYMENT INFORMATION",
-        "account_holder": "Account holder",
-        "address": "Address",
-        "iban": "IBAN",
-        "tel": "Phone",
-        "website": "Website",
-        "kvk": "Chamber of Commerce No.",
-        "vat_id": "VAT ID",
-        "notes": "Notes",
-        "page": "Page",
-    },
-
-    "nl": {
-        "invoice": "FACTUUR",
-        "invoice_no": "Factuurnummer",
-        "issue_date": "Factuurdatum",
-        "due_date": "Vervaldatum",
-        "bill_to": "FACTUUR AAN",
-        "description": "Omschrijving",
-        "qty": "Aantal",
-        "unit_price": "Prijs per eenheid",
-        "vat": "BTW",
-        "amount": "Bedrag",
-        "subtotal": "Subtotaal",
-        "total": "TOTAAL",
-        "payment": "BETALINGSINFORMATIE",
-        "account_holder": "Rekeninghouder",
-        "address": "Adres",
-        "iban": "IBAN",
-        "tel": "Telefoon",
-        "website": "Website",
-        "kvk": "KVK",
-        "vat_id": "BTW",
-        "notes": "Notities",
-        "page": "Pagina",
-    },
-
-    "de": {
-        "invoice": "RECHNUNG",
-        "invoice_no": "Rechnungsnummer",
-        "issue_date": "Rechnungsdatum",
-        "due_date": "Fälligkeitsdatum",
-        "bill_to": "RECHNUNGSEMPFÄNGER",
-        "description": "Beschreibung",
-        "qty": "Menge",
-        "unit_price": "Einzelpreis",
-        "vat": "MwSt.",
-        "amount": "Betrag",
-        "subtotal": "Zwischensumme",
-        "total": "GESAMT",
-        "payment": "ZAHLUNGSINFORMATIONEN",
-        "account_holder": "Kontoinhaber",
-        "address": "Adresse",
-        "iban": "IBAN",
-        "tel": "Telefon",
-        "website": "Website",
-        "kvk": "Handelsregisternr.",
-        "vat_id": "USt-IdNr.",
-        "notes": "Notizen",
-        "page": "Seite",
-    },
-}[locale]
-
-    # ============================================================
-    # COMPANY
-    # ============================================================
+        "en": {
+            "invoice": "INVOICE",
+            "invoice_no": "Invoice #",
+            "issue_date": "Issue date",
+            "due_date": "Due date",
+            "bill_to": "BILL TO",
+            "description": "Description",
+            "qty": "Qty",
+            "unit_price": "Unit price",
+            "vat": "VAT",
+            "amount": "Amount",
+            "subtotal": "Subtotal",
+            "total": "TOTAL",
+            "payment": "PAYMENT INFORMATION",
+            "account_holder": "Account holder",
+            "address": "Address",
+            "iban": "IBAN",
+            "tel": "Phone",
+            "website": "Website",
+            "kvk": "Chamber of Commerce No.",
+            "vat_id": "VAT ID",
+            "notes": "Notes",
+            "page": "Page",
+        },
+        "nl": {
+            "invoice": "FACTUUR",
+            "invoice_no": "Factuurnummer",
+            "issue_date": "Factuurdatum",
+            "due_date": "Vervaldatum",
+            "bill_to": "FACTUUR AAN",
+            "description": "Omschrijving",
+            "qty": "Aantal",
+            "unit_price": "Prijs per eenheid",
+            "vat": "BTW",
+            "amount": "Bedrag",
+            "subtotal": "Subtotaal",
+            "total": "TOTAAL",
+            "payment": "BETALINGSINFORMATIE",
+            "account_holder": "Rekeninghouder",
+            "address": "Adres",
+            "iban": "IBAN",
+            "tel": "Telefoon",
+            "website": "Website",
+            "kvk": "KVK",
+            "vat_id": "BTW",
+            "notes": "Notities",
+            "page": "Pagina",
+        },
+        "de": {
+            "invoice": "RECHNUNG",
+            "invoice_no": "Rechnungsnummer",
+            "issue_date": "Rechnungsdatum",
+            "due_date": "Fälligkeitsdatum",
+            "bill_to": "RECHNUNGSEMPFÄNGER",
+            "description": "Beschreibung",
+            "qty": "Menge",
+            "unit_price": "Einzelpreis",
+            "vat": "MwSt.",
+            "amount": "Betrag",
+            "subtotal": "Zwischensumme",
+            "total": "GESAMT",
+            "payment": "ZAHLUNGSINFORMATIONEN",
+            "account_holder": "Kontoinhaber",
+            "address": "Adresse",
+            "iban": "IBAN",
+            "tel": "Telefon",
+            "website": "Website",
+            "kvk": "Handelsregisternr.",
+            "vat_id": "USt-IdNr.",
+            "notes": "Notizen",
+            "page": "Seite",
+        },
+    }[locale]
 
     company_name = tenant.get("name") or "Company"
     company_address = tenant.get("address") or ""
@@ -561,10 +713,6 @@ def _render_invoice_pdf(
     company_iban = tenant.get("iban") or ""
     company_kvk = tenant.get("kvk_number") or ""
     company_vat = tenant.get("vat_number") or ""
-
-    # ============================================================
-    # INVOICE
-    # ============================================================
 
     invoice_number = invoice.get("number") or ""
     issue_date = invoice.get("issue_date") or ""
@@ -575,10 +723,6 @@ def _render_invoice_pdf(
         or tenant.get("currency")
         or "EUR"
     )
-
-    # ============================================================
-    # CLIENT
-    # ============================================================
 
     client_name = first_value(
         client.get("name"),
@@ -592,15 +736,7 @@ def _render_invoice_pdf(
     client_phone = client.get("phone") or ""
     client_vat = client.get("vat_number") or ""
 
-    # ============================================================
-    # STORY
-    # ============================================================
-
     story = []
-
-    # ============================================================
-    # HEADER
-    # ============================================================
 
     company_block = [
         Paragraph(
@@ -609,7 +745,6 @@ def _render_invoice_pdf(
         )
     ]
 
-    # Full company information in the invoice header
     if company_address:
         company_block.append(
             Paragraph(
@@ -641,15 +776,18 @@ def _render_invoice_pdf(
         ),
         Spacer(1, 4),
         Paragraph(
-            f"<b>{L['invoice_no']}</b>&nbsp;&nbsp;{safe(invoice_number)}",
+            f"<b>{L['invoice_no']}</b>&nbsp;&nbsp;"
+            f"{safe(invoice_number)}",
             meta_value,
         ),
         Paragraph(
-            f"<b>{L['issue_date']}</b>&nbsp;&nbsp;{safe(issue_date)}",
+            f"<b>{L['issue_date']}</b>&nbsp;&nbsp;"
+            f"{safe(issue_date)}",
             meta_value,
         ),
         Paragraph(
-            f"<b>{L['due_date']}</b>&nbsp;&nbsp;{safe(due_date)}",
+            f"<b>{L['due_date']}</b>&nbsp;&nbsp;"
+            f"{safe(due_date)}",
             meta_value,
         ),
     ]
@@ -665,12 +803,42 @@ def _render_invoice_pdf(
     header.setStyle(
         TableStyle(
             [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "TOP",
+                ),
+                (
+                    "ALIGN",
+                    (1, 0),
+                    (1, 0),
+                    "RIGHT",
+                ),
+                (
+                    "LEFTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    0,
+                ),
+                (
+                    "RIGHTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    0,
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    0,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    0,
+                ),
             ]
         )
     )
@@ -688,43 +856,60 @@ def _render_invoice_pdf(
         )
     )
 
-    # ============================================================
-    # BILL TO
-    # ============================================================
-
     bill_to = [
-        Paragraph(L["bill_to"], section),
+        Paragraph(
+            L["bill_to"],
+            section,
+        ),
         Spacer(1, 4),
     ]
 
     if client_company:
         bill_to.append(
-            Paragraph(f"<b>{safe(client_company)}</b>", body)
+            Paragraph(
+                f"<b>{safe(client_company)}</b>",
+                body,
+            )
         )
 
     if client_name:
         bill_to.append(
-            Paragraph(safe(client_name), body)
+            Paragraph(
+                safe(client_name),
+                body,
+            )
         )
 
     if client_contact:
         bill_to.append(
-            Paragraph(safe(client_contact), small)
+            Paragraph(
+                safe(client_contact),
+                small,
+            )
         )
 
     if client_address:
         bill_to.append(
-            Paragraph(safe(client_address), small)
+            Paragraph(
+                safe(client_address),
+                small,
+            )
         )
 
     if client_email:
         bill_to.append(
-            Paragraph(safe(client_email), small)
+            Paragraph(
+                safe(client_email),
+                small,
+            )
         )
 
     if client_phone:
         bill_to.append(
-            Paragraph(safe(client_phone), small)
+            Paragraph(
+                safe(client_phone),
+                small,
+            )
         )
 
     if client_vat:
@@ -737,18 +922,51 @@ def _render_invoice_pdf(
 
     bill_to_table = Table(
         [[bill_to]],
-        colWidths=[177 * mm],
+        colWidths=[
+            177 * mm
+        ],
     )
 
     bill_to_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, -1), LIGHT),
-                ("BOX", (0, 0), (-1, -1), 0.5, BORDER),
-                ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                ("TOPPADDING", (0, 0), (-1, -1), 10),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, -1),
+                    LIGHT,
+                ),
+                (
+                    "BOX",
+                    (0, 0),
+                    (-1, -1),
+                    0.5,
+                    BORDER,
+                ),
+                (
+                    "LEFTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    10,
+                ),
+                (
+                    "RIGHTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    10,
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    10,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    10,
+                ),
             ]
         )
     )
@@ -756,17 +974,28 @@ def _render_invoice_pdf(
     story.append(bill_to_table)
     story.append(Spacer(1, 18))
 
-    # ============================================================
-    # ITEMS
-    # ============================================================
-
     item_rows = [
         [
-            Paragraph(L["description"], table_header),
-            Paragraph(L["qty"], table_header_right),
-            Paragraph(L["unit_price"], table_header_right),
-            Paragraph(L["vat"], table_header_right),
-            Paragraph(L["amount"], table_header_right),
+            Paragraph(
+                L["description"],
+                table_header,
+            ),
+            Paragraph(
+                L["qty"],
+                table_header_right,
+            ),
+            Paragraph(
+                L["unit_price"],
+                table_header_right,
+            ),
+            Paragraph(
+                L["vat"],
+                table_header_right,
+            ),
+            Paragraph(
+                L["amount"],
+                table_header_right,
+            ),
         ]
     ]
 
@@ -776,14 +1005,22 @@ def _render_invoice_pdf(
         tax_rate = item.get("tax_rate", 0) or 0
 
         try:
-            amount = float(quantity) * float(unit_price)
+            amount = (
+                float(quantity)
+                * float(unit_price)
+            )
         except (TypeError, ValueError):
             amount = 0
 
         item_rows.append(
             [
                 Paragraph(
-                    safe(item.get("description", "")),
+                    safe(
+                        item.get(
+                            "description",
+                            "",
+                        )
+                    ),
                     body,
                 ),
                 Paragraph(
@@ -791,7 +1028,8 @@ def _render_invoice_pdf(
                     body_right,
                 ),
                 Paragraph(
-                    f"{safe(currency)} {money(unit_price)}",
+                    f"{safe(currency)} "
+                    f"{money(unit_price)}",
                     body_right,
                 ),
                 Paragraph(
@@ -799,7 +1037,8 @@ def _render_invoice_pdf(
                     body_right,
                 ),
                 Paragraph(
-                    f"{safe(currency)} {money(amount)}",
+                    f"{safe(currency)} "
+                    f"{money(amount)}",
                     body_right,
                 ),
             ]
@@ -821,29 +1060,92 @@ def _render_invoice_pdf(
     items_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), DARK),
-                ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("LINEBELOW", (0, 0), (-1, 0), 0.8, DARK),
-                ("LINEBELOW", (0, 1), (-1, -1), 0.4, BORDER),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 7),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-                ("TOPPADDING", (0, 0), (-1, 0), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
-                ("TOPPADDING", (0, 1), (-1, -1), 7),
-                ("BOTTOMPADDING", (0, 1), (-1, -1), 7),
-                ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    DARK,
+                ),
+                (
+                    "TEXTCOLOR",
+                    (0, 0),
+                    (-1, 0),
+                    WHITE,
+                ),
+                (
+                    "FONTNAME",
+                    (0, 0),
+                    (-1, 0),
+                    "Helvetica-Bold",
+                ),
+                (
+                    "LINEBELOW",
+                    (0, 0),
+                    (-1, 0),
+                    0.8,
+                    DARK,
+                ),
+                (
+                    "LINEBELOW",
+                    (0, 1),
+                    (-1, -1),
+                    0.4,
+                    BORDER,
+                ),
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "MIDDLE",
+                ),
+                (
+                    "LEFTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7,
+                ),
+                (
+                    "RIGHTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7,
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, 0),
+                    8,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, 0),
+                    8,
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 1),
+                    (-1, -1),
+                    7,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 1),
+                    (-1, -1),
+                    7,
+                ),
+                (
+                    "ALIGN",
+                    (1, 0),
+                    (-1, -1),
+                    "RIGHT",
+                ),
             ]
         )
     )
 
     story.append(items_table)
     story.append(Spacer(1, 16))
-
-    # ============================================================
-    # TOTALS
-    # ============================================================
 
     totals = _totals(
         invoice.get("items", [])
@@ -852,25 +1154,37 @@ def _render_invoice_pdf(
     totals_rows = [
         [
             "",
-            Paragraph(L["subtotal"], body),
             Paragraph(
-                f"{safe(currency)} {money(totals['subtotal'])}",
+                L["subtotal"],
+                body,
+            ),
+            Paragraph(
+                f"{safe(currency)} "
+                f"{money(totals['subtotal'])}",
                 body_right,
             ),
         ],
         [
             "",
-            Paragraph(L["vat"], body),
             Paragraph(
-                f"{safe(currency)} {money(totals['tax'])}",
+                L["vat"],
+                body,
+            ),
+            Paragraph(
+                f"{safe(currency)} "
+                f"{money(totals['tax'])}",
                 body_right,
             ),
         ],
         [
             "",
-            Paragraph(f"<b>{L['total']}</b>", total_label),
             Paragraph(
-                f"<b>{safe(currency)} {money(totals['total'])}</b>",
+                f"<b>{L['total']}</b>",
+                total_label,
+            ),
+            Paragraph(
+                f"<b>{safe(currency)} "
+                f"{money(totals['total'])}</b>",
                 total_value,
             ),
         ],
@@ -889,21 +1203,48 @@ def _render_invoice_pdf(
     totals_table.setStyle(
         TableStyle(
             [
-                ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-                ("TOPPADDING", (0, 0), (-1, 1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, 1), 4),
-                ("TOPPADDING", (0, 2), (-1, 2), 8),
-                ("BOTTOMPADDING", (0, 2), (-1, 2), 8),
-                ("LINEABOVE", (1, 2), (-1, 2), 1.2, DARK),
+                (
+                    "ALIGN",
+                    (1, 0),
+                    (-1, -1),
+                    "RIGHT",
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, 1),
+                    4,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, 1),
+                    4,
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 2),
+                    (-1, 2),
+                    8,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 2),
+                    (-1, 2),
+                    8,
+                ),
+                (
+                    "LINEABOVE",
+                    (1, 2),
+                    (-1, 2),
+                    1.2,
+                    DARK,
+                ),
             ]
         )
     )
 
     story.append(totals_table)
-
-    # ============================================================
-    # PAYMENT INFORMATION
-    # ============================================================
 
     if company_iban:
         story.append(Spacer(1, 18))
@@ -916,11 +1257,11 @@ def _render_invoice_pdf(
             Spacer(1, 5),
         ]
 
-        # Show the company identity again in the payment section
         if company_name:
             payment_block.append(
                 Paragraph(
-                    f"<b>{L['account_holder']}:</b> {safe(company_name)}",
+                    f"<b>{L['account_holder']}:</b> "
+                    f"{safe(company_name)}",
                     body,
                 )
             )
@@ -928,7 +1269,8 @@ def _render_invoice_pdf(
         if company_address:
             payment_block.append(
                 Paragraph(
-                    f"<b>{L['address']}:</b> {safe(company_address)}",
+                    f"<b>{L['address']}:</b> "
+                    f"{safe(company_address)}",
                     body,
                 )
             )
@@ -936,7 +1278,8 @@ def _render_invoice_pdf(
         if company_iban:
             payment_block.append(
                 Paragraph(
-                    f"<b>{L['iban']}:</b> {safe(company_iban)}",
+                    f"<b>{L['iban']}:</b> "
+                    f"{safe(company_iban)}",
                     body,
                 )
             )
@@ -944,7 +1287,8 @@ def _render_invoice_pdf(
         if company_phone:
             payment_block.append(
                 Paragraph(
-                    f"<b>{L['tel']}:</b> {safe(company_phone)}",
+                    f"<b>{L['tel']}:</b> "
+                    f"{safe(company_phone)}",
                     body,
                 )
             )
@@ -952,34 +1296,64 @@ def _render_invoice_pdf(
         if company_website:
             payment_block.append(
                 Paragraph(
-                    f"<b>{L['website']}:</b> {safe(company_website)}",
+                    f"<b>{L['website']}:</b> "
+                    f"{safe(company_website)}",
                     body,
                 )
             )
 
         payment_table = Table(
             [[payment_block]],
-            colWidths=[177 * mm],
+            colWidths=[
+                177 * mm
+            ],
         )
 
         payment_table.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FAFAFA")),
-                    ("BOX", (0, 0), (-1, -1), 0.5, BORDER),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                    ("TOPPADDING", (0, 0), (-1, -1), 9),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+                    (
+                        "BACKGROUND",
+                        (0, 0),
+                        (-1, -1),
+                        colors.HexColor("#FAFAFA"),
+                    ),
+                    (
+                        "BOX",
+                        (0, 0),
+                        (-1, -1),
+                        0.5,
+                        BORDER,
+                    ),
+                    (
+                        "LEFTPADDING",
+                        (0, 0),
+                        (-1, -1),
+                        10,
+                    ),
+                    (
+                        "RIGHTPADDING",
+                        (0, 0),
+                        (-1, -1),
+                        10,
+                    ),
+                    (
+                        "TOPPADDING",
+                        (0, 0),
+                        (-1, -1),
+                        9,
+                    ),
+                    (
+                        "BOTTOMPADDING",
+                        (0, 0),
+                        (-1, -1),
+                        9,
+                    ),
                 ]
             )
         )
 
         story.append(payment_table)
-
-    # ============================================================
-    # NOTES
-    # ============================================================
 
     if invoice.get("notes"):
         story.append(Spacer(1, 14))
@@ -1000,14 +1374,12 @@ def _render_invoice_pdf(
             )
         )
 
-    # ============================================================
-    # FOOTER
-    # ============================================================
-
-    def draw_footer(canvas, doc):
+    def draw_footer(
+        canvas,
+        doc,
+    ):
         canvas.saveState()
 
-        # Keep the footer compact and readable on every page.
         footer_y = 10 * mm
 
         canvas.setStrokeColor(BORDER)
@@ -1020,31 +1392,46 @@ def _render_invoice_pdf(
             footer_y + 18,
         )
 
-        # Company name
-        canvas.setFont("Helvetica-Bold", 7.5)
+        canvas.setFont(
+            "Helvetica-Bold",
+            7.5,
+        )
+
         canvas.setFillColor(TEXT)
+
         canvas.drawString(
             doc.leftMargin,
             footer_y + 8,
             str(company_name),
         )
 
-        # Left-side company contact details
-        canvas.setFont("Helvetica", 6.7)
+        canvas.setFont(
+            "Helvetica",
+            6.7,
+        )
+
         canvas.setFillColor(MUTED)
 
         footer_left = []
 
         if company_address:
-            footer_left.append(str(company_address))
+            footer_left.append(
+                str(company_address)
+            )
 
         if company_phone:
-            footer_left.append(f"{L['tel']}: {company_phone}")
+            footer_left.append(
+                f"{L['tel']}: {company_phone}"
+            )
 
         if company_website:
-            footer_left.append(str(company_website))
+            footer_left.append(
+                str(company_website)
+            )
 
-        footer_line = "  |  ".join(footer_left)
+        footer_line = "  |  ".join(
+            footer_left
+        )
 
         if footer_line:
             canvas.drawString(
@@ -1053,11 +1440,12 @@ def _render_invoice_pdf(
                 footer_line,
             )
 
-        # Right-side legal / banking details
         footer_right = []
 
         if company_iban:
-            footer_right.append(f"IBAN: {company_iban}")
+            footer_right.append(
+                f"IBAN: {company_iban}"
+            )
 
         if company_kvk:
             footer_right.append(
@@ -1069,7 +1457,9 @@ def _render_invoice_pdf(
                 f"{L['vat_id']}: {company_vat}"
             )
 
-        legal_line = "  |  ".join(footer_right)
+        legal_line = "  |  ".join(
+            footer_right
+        )
 
         if legal_line:
             canvas.drawRightString(
@@ -1078,21 +1468,21 @@ def _render_invoice_pdf(
                 legal_line,
             )
 
-        # Page number
-        canvas.setFont("Helvetica", 6.7)
+        canvas.setFont(
+            "Helvetica",
+            6.7,
+        )
+
         canvas.setFillColor(MUTED)
 
         canvas.drawRightString(
             PAGE_WIDTH - doc.rightMargin,
             footer_y - 12,
-            f"{L['page']} {canvas.getPageNumber()}",
+            f"{L['page']} "
+            f"{canvas.getPageNumber()}",
         )
 
         canvas.restoreState()
-
-    # ============================================================
-    # BUILD
-    # ============================================================
 
     doc.build(
         story,
@@ -1103,13 +1493,15 @@ def _render_invoice_pdf(
     return buffer.getvalue()
 
 
-# ─────────────────────────────────────────────
-# Quotes
-# ─────────────────────────────────────────────
+# ============================================================
+# QUOTES
+# ============================================================
 
 
 @router.get("/quotes")
-async def list_quotes(user: UserDep):
+async def list_quotes(
+    user: UserDep,
+):
     docs = await _r_q().list(
         user.tenant_id,
         limit=500,
@@ -1123,7 +1515,10 @@ async def list_quotes(user: UserDep):
     return docs
 
 
-@router.post("/quotes", status_code=201)
+@router.post(
+    "/quotes",
+    status_code=201,
+)
 async def create_quote(
     body: QuoteIn,
     user: UserDep,
@@ -1174,7 +1569,10 @@ async def update_quote(
     return doc
 
 
-@router.delete("/quotes/{qid}", status_code=204)
+@router.delete(
+    "/quotes/{qid}",
+    status_code=204,
+)
 async def delete_quote(
     qid: str,
     user: UserDep,
@@ -1187,20 +1585,25 @@ async def delete_quote(
     return None
 
 
-# ─────────────────────────────────────────────
-# Expenses
-# ─────────────────────────────────────────────
+# ============================================================
+# EXPENSES
+# ============================================================
 
 
 @router.get("/expenses")
-async def list_expenses(user: UserDep):
+async def list_expenses(
+    user: UserDep,
+):
     return await _r_e().list(
         user.tenant_id,
         limit=500,
     )
 
 
-@router.post("/expenses", status_code=201)
+@router.post(
+    "/expenses",
+    status_code=201,
+)
 async def create_expense(
     body: ExpenseIn,
     user: UserDep,
@@ -1232,7 +1635,10 @@ async def update_expense(
     return doc
 
 
-@router.delete("/expenses/{eid}", status_code=204)
+@router.delete(
+    "/expenses/{eid}",
+    status_code=204,
+)
 async def delete_expense(
     eid: str,
     user: UserDep,
@@ -1245,13 +1651,15 @@ async def delete_expense(
     return None
 
 
-# ─────────────────────────────────────────────
-# Reports
-# ─────────────────────────────────────────────
+# ============================================================
+# REPORTS
+# ============================================================
 
 
 @router.get("/reports/summary")
-async def finance_summary(user: UserDep):
+async def finance_summary(
+    user: UserDep,
+):
     invoices = await _r_inv().list(
         user.tenant_id,
         limit=5000,
@@ -1290,9 +1698,18 @@ async def finance_summary(user: UserDep):
     )
 
     return {
-        "revenue": round(revenue, 2),
-        "outstanding": round(outstanding, 2),
-        "expenses": round(total_expenses, 2),
+        "revenue": round(
+            revenue,
+            2,
+        ),
+        "outstanding": round(
+            outstanding,
+            2,
+        ),
+        "expenses": round(
+            total_expenses,
+            2,
+        ),
         "profit": round(
             revenue - total_expenses,
             2,

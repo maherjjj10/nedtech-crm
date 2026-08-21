@@ -21,6 +21,10 @@ import {
   Shield,
   User,
   Truck,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  BriefcaseBusiness,
 } from "lucide-react";
 
 import { Button } from "../ui/button";
@@ -33,132 +37,145 @@ import { useLanguage } from "../../i18n";
 
 
 /*
- * Navigation
+ * Navigation groups
  *
- * labelKey MUST match the translation key
- * exactly.
+ * Every labelKey MUST match the translation key.
  */
-const NAV = [
+const NAV_GROUPS = [
   {
-    to: "/",
-    labelKey: "dashboard",
-    icon: LayoutDashboard,
-    testid: "nav-dashboard",
-    end: true,
-    permission: "dashboard",
+    title: "overview",
+    fallbackTitle: "Overview",
+    items: [
+      {
+        to: "/",
+        labelKey: "dashboard",
+        icon: LayoutDashboard,
+        testid: "nav-dashboard",
+        end: true,
+        permission: "dashboard",
+      },
+    ],
   },
 
   {
-    to: "/clients",
-    labelKey: "clients",
-    icon: Users,
-    testid: "nav-clients",
-    permission: "crm",
+    title: "sales",
+    fallbackTitle: "Sales",
+    items: [
+      {
+        to: "/clients",
+        labelKey: "clients",
+        icon: Users,
+        testid: "nav-clients",
+        permission: "crm",
+      },
+      {
+        to: "/pipeline",
+        labelKey: "pipeline",
+        icon: TrendingUp,
+        testid: "nav-pipeline",
+        permission: "sales",
+      },
+      {
+        to: "/tasks",
+        labelKey: "tasks",
+        icon: ListChecks,
+        testid: "nav-tasks",
+        permission: "tasks",
+      },
+    ],
   },
 
   {
-    to: "/pipeline",
-    labelKey: "pipeline",
-    icon: TrendingUp,
-    testid: "nav-pipeline",
-    permission: "sales",
+    title: "management",
+    fallbackTitle: "Management",
+    items: [
+      {
+        to: "/suppliers",
+        labelKey: "suppliers",
+        icon: Truck,
+        testid: "nav-suppliers",
+        permission: "crm",
+      },
+      {
+        to: "/products",
+        labelKey: "products",
+        icon: Package,
+        testid: "nav-products",
+        permission: "products",
+      },
+      {
+        to: "/employees",
+        labelKey: "employees",
+        icon: UserCog,
+        testid: "nav-employees",
+        permission: "hr",
+      },
+    ],
   },
 
   {
-    to: "/tasks",
-    labelKey: "tasks",
-    icon: ListChecks,
-    testid: "nav-tasks",
-    permission: "tasks",
+    title: "finance",
+    fallbackTitle: "Finance",
+    items: [
+      {
+        to: "/finance",
+        labelKey: "finance",
+        icon: FileText,
+        testid: "nav-finance",
+        permission: "finance",
+      },
+      {
+        to: "/contracts",
+        labelKey: "contracts",
+        icon: FileSignature,
+        testid: "nav-contracts",
+        permission: "contracts",
+      },
+      {
+        to: "/billing",
+        labelKey: "billing",
+        icon: CreditCard,
+        testid: "nav-billing",
+        permission: "billing",
+      },
+    ],
   },
 
   {
-    to: "/finance",
-    labelKey: "finance",
-    icon: FileText,
-    testid: "nav-finance",
-    permission: "finance",
-  },
-
-  {
-    to: "/contracts",
-    labelKey: "contracts",
-    icon: FileSignature,
-    testid: "nav-contracts",
-    permission: "contracts",
-  },
-
-  {
-    to: "/products",
-    labelKey: "products",
-    icon: Package,
-    testid: "nav-products",
-    permission: "products",
-  },
-
-  /*
-   * SUPPLIERS
-   *
-   * IMPORTANT:
-   * Route = /suppliers
-   * Translation key = suppliers
-   *
-   * This allows:
-   * English  -> Suppliers
-   * Dutch    -> Leveranciers
-   * German   -> Lieferanten
-   */
-  {
-    to: "/suppliers",
-    labelKey: "suppliers",
-    icon: Truck,
-    testid: "nav-suppliers",
-    permission: "crm",
-  },
-
-  {
-    to: "/employees",
-    labelKey: "employees",
-    icon: UserCog,
-    testid: "nav-employees",
-    permission: "hr",
-  },
-
-  {
-    to: "/ai",
-    labelKey: "aiAssistant",
-    icon: Sparkles,
-    testid: "nav-ai",
-    permission: "ai",
-  },
-
-  {
-    to: "/billing",
-    labelKey: "billing",
-    icon: CreditCard,
-    testid: "nav-billing",
-    permission: "billing",
-  },
-
-  {
-    to: "/profile",
-    labelKey: "profile",
-    icon: User,
-    testid: "nav-profile",
-    permission: "profile",
-  },
-
-  {
-    to: "/settings",
-    labelKey: "settings",
-    icon: Settings,
-    testid: "nav-settings",
-    permission: "settings",
+    title: "administration",
+    fallbackTitle: "Administration",
+    items: [
+      {
+        to: "/ai",
+        labelKey: "aiAssistant",
+        icon: Sparkles,
+        testid: "nav-ai",
+        permission: "ai",
+      },
+      {
+        to: "/profile",
+        labelKey: "profile",
+        icon: User,
+        testid: "nav-profile",
+        permission: "profile",
+      },
+      {
+        to: "/settings",
+        labelKey: "settings",
+        icon: Settings,
+        testid: "nav-settings",
+        permission: "settings",
+      },
+    ],
   },
 ];
 
 
-function SidebarContent({ onNavigate }) {
+function SidebarContent({
+  onNavigate,
+  collapsed,
+  onToggleCollapse,
+}) {
   const { theme, toggle } = useTheme();
 
   const {
@@ -175,143 +192,327 @@ function SidebarContent({ onNavigate }) {
 
 
   /*
-   * Only show navigation items that
-   * the current user has permission to access.
+   * Check whether a route is currently active.
    */
-  const navItems = NAV.filter((item) =>
-    can(item.permission)
-  );
+  const isActive = (item) => {
+    if (item.end) {
+      return location.pathname === item.to;
+    }
+
+    return (
+      location.pathname === item.to ||
+      location.pathname.startsWith(item.to + "/")
+    );
+  };
 
 
   /*
-   * Platform administration
+   * Platform administration is added
+   * as a separate navigation item.
    */
-  if (isPlatformAdmin) {
-    navItems.push({
-      to: "/platform",
-      labelKey: "platformAdmin",
-      fallbackLabel: "Platform Admin",
-      icon: Shield,
-      testid: "nav-platform",
-    });
-  }
+  const platformItem = isPlatformAdmin
+    ? {
+        to: "/platform",
+        labelKey: "platformAdmin",
+        fallbackLabel: "Platform Admin",
+        icon: Shield,
+        testid: "nav-platform",
+      }
+    : null;
 
 
   return (
     <div className="flex flex-col h-full">
 
-      {/* =========================================
-          WORKSPACE HEADER
-      ========================================= */}
 
-      <div className="border-b border-border px-4 py-4">
+      {/* =====================================================
+          HEADER
+      ====================================================== */}
 
-        <div className="flex items-center gap-3">
+      <div
+        className={`border-b border-border transition-all duration-200 ${
+          collapsed ? "px-3 py-4" : "px-4 py-4"
+        }`}
+      >
+
+        <div
+          className={`flex items-center ${
+            collapsed ? "justify-center" : "gap-3"
+          }`}
+        >
+
+          {/* Logo */}
 
           <div
-            className="h-9 w-9 rounded-md bg-foreground text-background flex items-center justify-center font-black"
+            className="h-9 w-9 shrink-0 rounded-lg bg-foreground text-background flex items-center justify-center font-black shadow-sm"
             data-testid="brand-mark"
           >
             N
           </div>
 
 
-          <div className="leading-tight min-w-0">
+          {/* Workspace name */}
 
-            <div
-              className="text-sm font-semibold truncate"
-              data-testid="workspace-name"
+          {!collapsed && (
+            <div className="leading-tight min-w-0 flex-1">
+
+              <div
+                className="text-sm font-semibold truncate"
+                data-testid="workspace-name"
+              >
+                {tenant?.name || t("workspace")}
+              </div>
+
+              <div className="n-overline text-[10px] mt-0.5">
+                NED Tech CRM
+              </div>
+
+            </div>
+          )}
+
+
+          {/* Collapse button */}
+
+          {!collapsed && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={onToggleCollapse}
+              title="Collapse sidebar"
             >
-              {tenant?.name || t("workspace")}
-            </div>
-
-
-            <div className="n-overline text-[10px]">
-              NED Tech CRM
-            </div>
-
-          </div>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          )}
 
         </div>
+
+
+        {/* Expand button */}
+
+        {collapsed && (
+          <div className="flex justify-center mt-3">
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onToggleCollapse}
+              title="Expand sidebar"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+
+          </div>
+        )}
 
       </div>
 
 
-      {/* =========================================
+      {/* =====================================================
+          QUICK SEARCH
+      ====================================================== */}
+
+      {!collapsed && (
+        <div className="px-3 pt-3">
+
+          <button
+            type="button"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background/50 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors text-sm"
+          >
+
+            <Search className="h-4 w-4 shrink-0" />
+
+            <span className="flex-1 text-left">
+              Search
+            </span>
+
+            <kbd className="hidden lg:inline-flex items-center rounded border border-border px-1.5 py-0.5 text-[10px] font-medium">
+              Ctrl K
+            </kbd>
+
+          </button>
+
+        </div>
+      )}
+
+
+      {/* =====================================================
           NAVIGATION
-      ========================================= */}
+      ====================================================== */}
 
-      <nav className="flex-1 px-3 py-4 space-y-1 n-scroll overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 n-scroll overflow-y-auto">
 
-        {navItems.map((n) => {
+        <div className="space-y-5">
 
-          const Icon = n.icon;
+          {NAV_GROUPS.map((group) => {
 
+            const visibleItems = group.items.filter((item) =>
+              can(item.permission)
+            );
 
-          const active = n.end
-            ? location.pathname === n.to
-            : (
-                location.pathname === n.to ||
-                location.pathname.startsWith(
-                  n.to + "/"
-                )
-              );
+            if (!visibleItems.length) {
+              return null;
+            }
 
 
-          /*
-           * Translation
-           *
-           * Example:
-           *
-           * suppliers
-           *
-           * EN -> Suppliers
-           * NL -> Leveranciers
-           * DE -> Lieferanten
-           */
-          const label = n.labelKey
-            ? t(n.labelKey)
-            : n.fallbackLabel;
+            return (
+              <div key={group.title}>
+
+                {/* Group title */}
+
+                {!collapsed && (
+                  <div className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                    {group.title === "overview"
+                      ? "Overview"
+                      : group.title === "sales"
+                      ? "Sales"
+                      : group.title === "management"
+                      ? "Management"
+                      : group.title === "finance"
+                      ? "Finance"
+                      : "Administration"}
+                  </div>
+                )}
 
 
-          return (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              onClick={onNavigate}
-              data-testid={n.testid}
-              className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors duration-150 ${
-                active
-                  ? "bg-accent text-accent-foreground font-medium"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              }`}
-            >
+                <div className="space-y-1">
 
-              <Icon className="h-4 w-4 shrink-0" />
+                  {visibleItems.map((item) => {
 
-              <span>
-                {label}
-              </span>
+                    const Icon = item.icon;
+                    const active = isActive(item);
 
-            </NavLink>
-          );
+                    const label = item.labelKey
+                      ? t(item.labelKey)
+                      : item.fallbackLabel;
 
-        })}
+
+                    return (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        onClick={onNavigate}
+                        data-testid={item.testid}
+                        title={collapsed ? label : undefined}
+                        className={`group relative flex items-center rounded-lg text-sm transition-all duration-150 ${
+                          collapsed
+                            ? "justify-center px-2 py-2.5"
+                            : "gap-3 px-3 py-2.5"
+                        } ${
+                          active
+                            ? "bg-accent text-accent-foreground font-medium shadow-sm"
+                            : "text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground"
+                        }`}
+                      >
+
+                        {/* Active indicator */}
+
+                        {active && (
+                          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-foreground" />
+                        )}
+
+
+                        <Icon
+                          className={`h-4 w-4 shrink-0 transition-transform duration-150 ${
+                            active
+                              ? "scale-105"
+                              : "group-hover:scale-105"
+                          }`}
+                        />
+
+
+                        {!collapsed && (
+                          <span className="truncate">
+                            {label}
+                          </span>
+                        )}
+
+                      </NavLink>
+                    );
+                  })}
+
+                </div>
+
+              </div>
+            );
+          })}
+
+
+          {/* =================================================
+              PLATFORM ADMIN
+          ================================================== */}
+
+          {platformItem && (
+            <div>
+
+              {!collapsed && (
+                <div className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  Platform
+                </div>
+              )}
+
+              <NavLink
+                to={platformItem.to}
+                onClick={onNavigate}
+                data-testid={platformItem.testid}
+                title={
+                  collapsed
+                    ? platformItem.fallbackLabel
+                    : undefined
+                }
+                className={`group relative flex items-center rounded-lg text-sm transition-all duration-150 ${
+                  collapsed
+                    ? "justify-center px-2 py-2.5"
+                    : "gap-3 px-3 py-2.5"
+                } ${
+                  isActive(platformItem)
+                    ? "bg-accent text-accent-foreground font-medium shadow-sm"
+                    : "text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground"
+                }`}
+              >
+
+                <Shield className="h-4 w-4 shrink-0" />
+
+                {!collapsed && (
+                  <span>
+                    {platformItem.labelKey
+                      ? t(platformItem.labelKey)
+                      : platformItem.fallbackLabel}
+                  </span>
+                )}
+
+              </NavLink>
+
+            </div>
+          )}
+
+        </div>
 
       </nav>
 
 
-      {/* =========================================
+      {/* =====================================================
           USER FOOTER
-      ========================================= */}
+      ====================================================== */}
 
-      <div className="border-t border-border p-3 space-y-3">
+      <div
+        className={`border-t border-border ${
+          collapsed ? "p-2" : "p-3"
+        }`}
+      >
 
-        {/* User information */}
+        {/* User */}
 
-        <div className="flex items-center gap-3 px-2 py-2">
+        <div
+          className={`flex items-center ${
+            collapsed
+              ? "justify-center"
+              : "gap-3 px-2"
+          } py-2`}
+        >
 
-          <Avatar className="h-8 w-8">
+          <Avatar className="h-8 w-8 shrink-0">
 
             <AvatarFallback className="text-xs bg-foreground text-background">
               {initials(
@@ -323,46 +524,60 @@ function SidebarContent({ onNavigate }) {
           </Avatar>
 
 
-          <div className="flex-1 min-w-0">
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
 
-            <div
-              className="text-sm font-medium truncate"
-              data-testid="user-name"
-            >
-              {user?.name}
+              <div
+                className="text-sm font-medium truncate"
+                data-testid="user-name"
+              >
+                {user?.name}
+              </div>
+
+              <div className="text-xs text-muted-foreground truncate">
+                {user?.email}
+              </div>
+
             </div>
+          )}
+
+        </div>
 
 
-            <div className="text-xs text-muted-foreground truncate">
-              {user?.email}
-            </div>
+        {/* Language */}
 
+        {!collapsed && (
+          <div className="mt-2">
+            <LanguageSwitcher />
           </div>
-
-        </div>
-
-
-        {/* =========================================
-            LANGUAGE
-        ========================================= */}
-
-        <div className="w-full">
-          <LanguageSwitcher />
-        </div>
+        )}
 
 
-        {/* =========================================
-            THEME + LOGOUT
-        ========================================= */}
+        {/* Theme + Logout */}
 
-        <div className="flex gap-2">
+        <div
+          className={`flex gap-2 mt-2 ${
+            collapsed
+              ? "flex-col"
+              : "flex-row"
+          }`}
+        >
 
           <Button
             variant="outline"
             size="sm"
-            className="flex-1"
+            className={
+              collapsed
+                ? "w-full h-9"
+                : "flex-1"
+            }
             onClick={toggle}
             data-testid="toggle-theme"
+            title={
+              theme === "dark"
+                ? "Light"
+                : "Dark"
+            }
           >
 
             {theme === "dark" ? (
@@ -371,14 +586,13 @@ function SidebarContent({ onNavigate }) {
               <Moon className="h-4 w-4" />
             )}
 
-
-            <span className="ml-2 text-xs">
-
-              {theme === "dark"
-                ? "Light"
-                : "Dark"}
-
-            </span>
+            {!collapsed && (
+              <span className="ml-2 text-xs">
+                {theme === "dark"
+                  ? "Light"
+                  : "Dark"}
+              </span>
+            )}
 
           </Button>
 
@@ -386,6 +600,11 @@ function SidebarContent({ onNavigate }) {
           <Button
             variant="ghost"
             size="sm"
+            className={
+              collapsed
+                ? "w-full h-9"
+                : ""
+            }
             onClick={logout}
             data-testid="logout-btn"
             title={t("logout")}
@@ -404,26 +623,32 @@ function SidebarContent({ onNavigate }) {
 }
 
 
+/* =========================================================
+   MAIN SIDEBAR
+========================================================= */
+
 export default function Sidebar() {
 
   const [open, setOpen] = useState(false);
+
+  const [collapsed, setCollapsed] = useState(false);
 
 
   return (
     <>
 
-      {/* =========================================
+
+      {/* =====================================================
           MOBILE TOP BAR
-      ========================================= */}
+      ====================================================== */}
 
       <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
 
         <div className="flex items-center gap-2">
 
-          <div className="h-8 w-8 rounded-md bg-foreground text-background flex items-center justify-center font-black text-sm">
+          <div className="h-8 w-8 rounded-lg bg-foreground text-background flex items-center justify-center font-black text-sm">
             N
           </div>
-
 
           <div className="text-sm font-semibold">
             NED Tech CRM
@@ -446,23 +671,32 @@ export default function Sidebar() {
       </div>
 
 
-      {/* =========================================
+      {/* =====================================================
           DESKTOP SIDEBAR
-      ========================================= */}
+      ====================================================== */}
 
       <aside
-        className="hidden md:flex flex-col w-64 shrink-0 border-r border-border bg-card h-screen"
+        className={`hidden md:flex flex-col shrink-0 border-r border-border bg-card h-screen transition-all duration-200 ${
+          collapsed
+            ? "w-[72px]"
+            : "w-64"
+        }`}
         data-testid="app-sidebar"
       >
 
-        <SidebarContent />
+        <SidebarContent
+          collapsed={collapsed}
+          onToggleCollapse={() =>
+            setCollapsed((value) => !value)
+          }
+        />
 
       </aside>
 
 
-      {/* =========================================
+      {/* =====================================================
           MOBILE SIDEBAR
-      ========================================= */}
+      ====================================================== */}
 
       {open && (
         <>
@@ -470,7 +704,7 @@ export default function Sidebar() {
           {/* Overlay */}
 
           <div
-            className="md:hidden fixed inset-0 z-50 bg-black/60"
+            className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-[1px]"
             onClick={() => setOpen(false)}
           />
 
@@ -478,11 +712,11 @@ export default function Sidebar() {
           {/* Sidebar */}
 
           <aside
-            className="md:hidden fixed inset-y-0 left-0 z-50 flex flex-col w-72 border-r border-border bg-card animate-in slide-in-from-left duration-200"
+            className="md:hidden fixed inset-y-0 left-0 z-50 flex flex-col w-72 border-r border-border bg-card animate-in slide-in-from-left duration-200 shadow-xl"
             data-testid="mobile-sidebar"
           >
 
-            {/* Close button */}
+            {/* Close */}
 
             <div className="flex justify-end p-2">
 
@@ -503,6 +737,7 @@ export default function Sidebar() {
             <div className="flex-1 min-h-0">
 
               <SidebarContent
+                collapsed={false}
                 onNavigate={() =>
                   setOpen(false)
                 }

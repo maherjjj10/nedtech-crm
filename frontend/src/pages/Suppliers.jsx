@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import PageHeader from "../components/layout/PageHeader";
 import { Button } from "../components/ui/button";
@@ -54,6 +55,9 @@ const EMPTY = {
 export default function Suppliers() {
   const { t } = useLanguage();
 
+  const [searchParams, setSearchParams] =
+    useSearchParams();
+
   const [suppliers, setSuppliers] = useState([]);
   const [q, setQ] = useState("");
 
@@ -66,34 +70,54 @@ export default function Suppliers() {
   const [form, setForm] = useState(EMPTY);
 
 
-  const load = useCallback(async (search = "") => {
-    try {
-      const { data } = await api.get("/suppliers", {
-        params: search ? { q: search } : {},
-      });
+  /*
+   * Load suppliers
+   */
+  const load = useCallback(
+    async (search = "") => {
+      try {
+        const { data } = await api.get(
+          "/suppliers",
+          {
+            params: search
+              ? { q: search }
+              : {},
+          }
+        );
 
-      setSuppliers(data || []);
-    } catch (err) {
-      toast.error(
-        err?.response?.data?.detail ||
-        t("supplierLoadFailed")
-      );
-    }
-  }, [t]);
+        setSuppliers(data || []);
+      } catch (err) {
+        toast.error(
+          err?.response?.data?.detail ||
+            t("supplierLoadFailed")
+        );
+      }
+    },
+    [t]
+  );
 
 
+  /*
+   * Initial load
+   */
   useEffect(() => {
     load();
   }, [load]);
 
 
-  const openNew = () => {
+  /*
+   * Open create dialog
+   */
+  const openNew = useCallback(() => {
     setEditing(null);
     setForm({ ...EMPTY });
     setOpen(true);
-  };
+  }, []);
 
 
+  /*
+   * Open edit dialog
+   */
   const openEdit = (supplier) => {
     setEditing(supplier);
 
@@ -106,12 +130,52 @@ export default function Suppliers() {
   };
 
 
+  /*
+   * Open view dialog
+   */
   const openView = (supplier) => {
     setViewing(supplier);
     setViewOpen(true);
   };
 
 
+  /*
+   * Support:
+
+      /suppliers?action=create
+
+   * This allows the Command Palette
+   * to directly open the create dialog.
+   */
+  useEffect(() => {
+    if (
+      searchParams.get("action") ===
+      "create"
+    ) {
+      openNew();
+
+      const nextParams =
+        new URLSearchParams(searchParams);
+
+      nextParams.delete("action");
+
+      setSearchParams(
+        nextParams,
+        {
+          replace: true,
+        }
+      );
+    }
+  }, [
+    searchParams,
+    setSearchParams,
+    openNew,
+  ]);
+
+
+  /*
+   * Save supplier
+   */
   const save = async (e) => {
     e.preventDefault();
 
@@ -119,19 +183,31 @@ export default function Suppliers() {
       const payload = {
         name: form.name,
         company: form.company || null,
-        contact_person: form.contact_person || null,
+        contact_person:
+          form.contact_person || null,
         email: form.email || null,
         phone: form.phone || null,
-        vat_number: form.vat_number || null,
-        kvk_number: form.kvk_number || null,
-        address: form.address || null,
-        postal_code: form.postal_code || null,
-        city: form.city || null,
-        country: form.country || "Netherlands",
-        iban: form.iban || null,
-        website: form.website || null,
-        status: form.status || "active",
-        notes: form.notes || null,
+        vat_number:
+          form.vat_number || null,
+        kvk_number:
+          form.kvk_number || null,
+        address:
+          form.address || null,
+        postal_code:
+          form.postal_code || null,
+        city:
+          form.city || null,
+        country:
+          form.country ||
+          "Netherlands",
+        iban:
+          form.iban || null,
+        website:
+          form.website || null,
+        status:
+          form.status || "active",
+        notes:
+          form.notes || null,
       };
 
 
@@ -165,19 +241,28 @@ export default function Suppliers() {
     } catch (err) {
       toast.error(
         err?.response?.data?.detail ||
-        t("supplierSaveFailed")
+          t("supplierSaveFailed")
       );
     }
   };
 
 
+  /*
+   * Delete supplier
+   */
   const remove = async (id) => {
-    if (!window.confirm(t("supplierDeleteConfirm"))) {
+    if (
+      !window.confirm(
+        t("supplierDeleteConfirm")
+      )
+    ) {
       return;
     }
 
     try {
-      await api.delete(`/suppliers/${id}`);
+      await api.delete(
+        `/suppliers/${id}`
+      );
 
       toast.success(
         t("supplierDeleted")
@@ -188,13 +273,19 @@ export default function Suppliers() {
     } catch (err) {
       toast.error(
         err?.response?.data?.detail ||
-        t("supplierDeleteFailed")
+          t("supplierDeleteFailed")
       );
     }
   };
 
 
-  const updateField = (field, value) => {
+  /*
+   * Form field update
+   */
+  const updateField = (
+    field,
+    value
+  ) => {
     setForm((prev) => ({
       ...prev,
       [field]: value,
@@ -202,8 +293,15 @@ export default function Suppliers() {
   };
 
 
-  const ViewField = ({ label, value }) => (
+  /*
+   * View field
+   */
+  const ViewField = ({
+    label,
+    value,
+  }) => (
     <div className="space-y-1">
+
       <div className="text-xs font-medium text-muted-foreground">
         {label}
       </div>
@@ -211,15 +309,22 @@ export default function Suppliers() {
       <div className="text-sm min-h-[20px]">
         {value || "—"}
       </div>
+
     </div>
   );
 
 
   return (
     <>
+      {/* =================================================
+          HEADER
+      ================================================= */}
+
       <PageHeader
         title={t("suppliers")}
-        description={t("suppliersDescription")}
+        description={t(
+          "suppliersDescription"
+        )}
         right={
           <Dialog
             open={open}
@@ -227,12 +332,18 @@ export default function Suppliers() {
           >
 
             <DialogTrigger asChild>
-              <Button onClick={openNew}>
+              <Button
+                onClick={openNew}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 {t("newSupplier")}
               </Button>
             </DialogTrigger>
 
+
+            {/* =========================================
+                CREATE / EDIT
+            ========================================== */}
 
             <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
 
@@ -251,7 +362,9 @@ export default function Suppliers() {
               >
 
                 <div className="space-y-2">
-                  <Label>{t("supplierName")}</Label>
+                  <Label>
+                    {t("supplierName")}
+                  </Label>
 
                   <Input
                     value={form.name}
@@ -267,7 +380,9 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("company")}</Label>
+                  <Label>
+                    {t("company")}
+                  </Label>
 
                   <Input
                     value={form.company}
@@ -282,10 +397,14 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("contactPerson")}</Label>
+                  <Label>
+                    {t("contactPerson")}
+                  </Label>
 
                   <Input
-                    value={form.contact_person}
+                    value={
+                      form.contact_person
+                    }
                     onChange={(e) =>
                       updateField(
                         "contact_person",
@@ -297,7 +416,9 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("email")}</Label>
+                  <Label>
+                    {t("email")}
+                  </Label>
 
                   <Input
                     type="email"
@@ -313,7 +434,9 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("phone")}</Label>
+                  <Label>
+                    {t("phone")}
+                  </Label>
 
                   <Input
                     value={form.phone}
@@ -328,10 +451,14 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("vatNumber")}</Label>
+                  <Label>
+                    {t("vatNumber")}
+                  </Label>
 
                   <Input
-                    value={form.vat_number}
+                    value={
+                      form.vat_number
+                    }
                     onChange={(e) =>
                       updateField(
                         "vat_number",
@@ -343,10 +470,14 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("kvkNumber")}</Label>
+                  <Label>
+                    {t("kvkNumber")}
+                  </Label>
 
                   <Input
-                    value={form.kvk_number}
+                    value={
+                      form.kvk_number
+                    }
                     onChange={(e) =>
                       updateField(
                         "kvk_number",
@@ -358,7 +489,9 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("address")}</Label>
+                  <Label>
+                    {t("address")}
+                  </Label>
 
                   <Input
                     value={form.address}
@@ -373,10 +506,14 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("postalCode")}</Label>
+                  <Label>
+                    {t("postalCode")}
+                  </Label>
 
                   <Input
-                    value={form.postal_code}
+                    value={
+                      form.postal_code
+                    }
                     onChange={(e) =>
                       updateField(
                         "postal_code",
@@ -388,7 +525,9 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("city")}</Label>
+                  <Label>
+                    {t("city")}
+                  </Label>
 
                   <Input
                     value={form.city}
@@ -403,7 +542,9 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("country")}</Label>
+                  <Label>
+                    {t("country")}
+                  </Label>
 
                   <Input
                     value={form.country}
@@ -418,7 +559,9 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("iban")}</Label>
+                  <Label>
+                    {t("iban")}
+                  </Label>
 
                   <Input
                     value={form.iban}
@@ -433,7 +576,9 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("website")}</Label>
+                  <Label>
+                    {t("website")}
+                  </Label>
 
                   <Input
                     value={form.website}
@@ -448,7 +593,9 @@ export default function Suppliers() {
 
 
                 <div className="space-y-2">
-                  <Label>{t("status")}</Label>
+                  <Label>
+                    {t("status")}
+                  </Label>
 
                   <select
                     value={form.status}
@@ -460,6 +607,7 @@ export default function Suppliers() {
                     }
                     className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                   >
+
                     <option value="active">
                       {t("active")}
                     </option>
@@ -467,12 +615,15 @@ export default function Suppliers() {
                     <option value="inactive">
                       {t("inactive")}
                     </option>
+
                   </select>
                 </div>
 
 
                 <div className="space-y-2">
-                  <Label>{t("notes")}</Label>
+                  <Label>
+                    {t("notes")}
+                  </Label>
 
                   <Textarea
                     value={form.notes}
@@ -487,11 +638,13 @@ export default function Suppliers() {
 
 
                 <DialogFooter>
+
                   <Button type="submit">
                     {editing
                       ? t("updateSupplier")
                       : t("createSupplier")}
                   </Button>
+
                 </DialogFooter>
 
               </form>
@@ -503,21 +656,30 @@ export default function Suppliers() {
       />
 
 
+      {/* =================================================
+          CONTENT
+      ================================================= */}
+
       <div className="p-8 space-y-6">
 
         {/* Search */}
+
         <div className="relative max-w-md">
 
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
 
           <Input
-            placeholder={t("searchSuppliers")}
+            placeholder={t(
+              "searchSuppliers"
+            )}
             value={q}
             onChange={(e) =>
               setQ(e.target.value)
             }
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (
+                e.key === "Enter"
+              ) {
                 load(q);
               }
             }}
@@ -528,6 +690,7 @@ export default function Suppliers() {
 
 
         {/* Supplier table */}
+
         <Card className="border-border/70 overflow-hidden">
 
           <div className="grid grid-cols-12 px-6 py-3 border-b border-border n-overline">
@@ -566,137 +729,166 @@ export default function Suppliers() {
           )}
 
 
-          {suppliers.map((supplier) => (
-            <div
-              key={supplier.id}
-              className="grid grid-cols-12 px-6 py-4 border-b border-border/60 last:border-0 items-center text-sm"
-            >
+          {suppliers.map(
+            (supplier) => (
+              <div
+                key={supplier.id}
+                className="grid grid-cols-12 px-6 py-4 border-b border-border/60 last:border-0 items-center text-sm"
+              >
 
-              <div className="col-span-3">
-                <div className="font-medium">
-                  {supplier.name}
+                <div className="col-span-3">
+
+                  <div className="font-medium">
+                    {supplier.name}
+                  </div>
+
+                  {supplier.contact_person && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {
+                        supplier.contact_person
+                      }
+                    </div>
+                  )}
+
                 </div>
 
-                {supplier.contact_person && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {supplier.contact_person}
-                  </div>
-                )}
+
+                <div className="col-span-3 text-muted-foreground">
+                  {supplier.company ||
+                    "—"}
+                </div>
+
+
+                <div className="col-span-2 text-muted-foreground">
+                  {supplier.email ||
+                    supplier.phone ||
+                    "—"}
+                </div>
+
+
+                <div className="col-span-2 text-muted-foreground">
+
+                  {supplier.vat_number ||
+                  supplier.kvk_number ? (
+                    <>
+                      {supplier.vat_number && (
+                        <div>
+                          {t(
+                            "vatShort"
+                          )}
+                          :{" "}
+                          {
+                            supplier.vat_number
+                          }
+                        </div>
+                      )}
+
+                      {supplier.kvk_number && (
+                        <div>
+                          {t(
+                            "kvkShort"
+                          )}
+                          :{" "}
+                          {
+                            supplier.kvk_number
+                          }
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    "—"
+                  )}
+
+                </div>
+
+
+                <div className="col-span-1">
+
+                  <Badge
+                    variant={
+                      supplier.status ===
+                      "active"
+                        ? "default"
+                        : "outline"
+                    }
+                  >
+                    {supplier.status ===
+                    "active"
+                      ? t("active")
+                      : t("inactive")}
+                  </Badge>
+
+                </div>
+
+
+                {/* ACTIONS */}
+
+                <div className="col-span-1 flex gap-1 justify-end">
+
+                  {/* VIEW */}
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      openView(
+                        supplier
+                      )
+                    }
+                    title={t("view")}
+                    data-testid={`view-supplier-${supplier.id}`}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+
+
+                  {/* EDIT */}
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      openEdit(
+                        supplier
+                      )
+                    }
+                    title={t("edit")}
+                    data-testid={`edit-supplier-${supplier.id}`}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+
+
+                  {/* DELETE */}
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      remove(
+                        supplier.id
+                      )
+                    }
+                    title={t("delete")}
+                    data-testid={`delete-supplier-${supplier.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+
+                </div>
+
               </div>
-
-
-              <div className="col-span-3 text-muted-foreground">
-                {supplier.company || "—"}
-              </div>
-
-
-              <div className="col-span-2 text-muted-foreground">
-                {supplier.email ||
-                  supplier.phone ||
-                  "—"}
-              </div>
-
-
-              <div className="col-span-2 text-muted-foreground">
-
-                {supplier.vat_number ||
-                supplier.kvk_number ? (
-                  <>
-                    {supplier.vat_number && (
-                      <div>
-                        {t("vatShort")}:{" "}
-                        {supplier.vat_number}
-                      </div>
-                    )}
-
-                    {supplier.kvk_number && (
-                      <div>
-                        {t("kvkShort")}:{" "}
-                        {supplier.kvk_number}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  "—"
-                )}
-
-              </div>
-
-
-              <div className="col-span-1">
-
-                <Badge
-                  variant={
-                    supplier.status === "active"
-                      ? "default"
-                      : "outline"
-                  }
-                >
-                  {supplier.status === "active"
-                    ? t("active")
-                    : t("inactive")}
-                </Badge>
-
-              </div>
-
-
-              {/* ACTIONS */}
-              <div className="col-span-1 flex gap-1 justify-end">
-
-                {/* VIEW */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() =>
-                    openView(supplier)
-                  }
-                  title={t("view")}
-                  data-testid={`view-supplier-${supplier.id}`}
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
-
-
-                {/* EDIT */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() =>
-                    openEdit(supplier)
-                  }
-                  title={t("edit")}
-                  data-testid={`edit-supplier-${supplier.id}`}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-
-
-                {/* DELETE */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() =>
-                    remove(supplier.id)
-                  }
-                  title={t("delete")}
-                  data-testid={`delete-supplier-${supplier.id}`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-
-              </div>
-
-            </div>
-          ))}
+            )
+          )}
 
         </Card>
 
       </div>
 
 
-      {/* =========================================
+      {/* =================================================
           VIEW SUPPLIER
-      ========================================= */}
+      ================================================= */}
 
       <Dialog
         open={viewOpen}
@@ -716,6 +908,7 @@ export default function Suppliers() {
             <div className="space-y-6">
 
               {/* Supplier header */}
+
               <div className="rounded-lg border border-border p-4 bg-muted/20">
 
                 <div className="flex items-start justify-between gap-4">
@@ -728,7 +921,9 @@ export default function Suppliers() {
 
                     {viewing.company && (
                       <p className="text-sm text-muted-foreground mt-1">
-                        {viewing.company}
+                        {
+                          viewing.company
+                        }
                       </p>
                     )}
 
@@ -737,12 +932,14 @@ export default function Suppliers() {
 
                   <Badge
                     variant={
-                      viewing.status === "active"
+                      viewing.status ===
+                      "active"
                         ? "default"
                         : "outline"
                     }
                   >
-                    {viewing.status === "active"
+                    {viewing.status ===
+                    "active"
                       ? t("active")
                       : t("inactive")}
                   </Badge>
@@ -753,42 +950,63 @@ export default function Suppliers() {
 
 
               {/* General information */}
+
               <div className="space-y-3">
 
                 <h3 className="text-sm font-semibold">
-                  {t("generalInformation")}
+                  {t(
+                    "generalInformation"
+                  )}
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                   <ViewField
-                    label={t("supplierName")}
+                    label={t(
+                      "supplierName"
+                    )}
                     value={viewing.name}
                   />
 
                   <ViewField
-                    label={t("company")}
-                    value={viewing.company}
+                    label={t(
+                      "company"
+                    )}
+                    value={
+                      viewing.company
+                    }
                   />
 
                   <ViewField
-                    label={t("contactPerson")}
-                    value={viewing.contact_person}
+                    label={t(
+                      "contactPerson"
+                    )}
+                    value={
+                      viewing.contact_person
+                    }
                   />
 
                   <ViewField
                     label={t("email")}
-                    value={viewing.email}
+                    value={
+                      viewing.email
+                    }
                   />
 
                   <ViewField
                     label={t("phone")}
-                    value={viewing.phone}
+                    value={
+                      viewing.phone
+                    }
                   />
 
                   <ViewField
-                    label={t("website")}
-                    value={viewing.website}
+                    label={t(
+                      "website"
+                    )}
+                    value={
+                      viewing.website
+                    }
                   />
 
                 </div>
@@ -797,22 +1015,33 @@ export default function Suppliers() {
 
 
               {/* Business information */}
+
               <div className="space-y-3">
 
                 <h3 className="text-sm font-semibold">
-                  {t("businessInformation")}
+                  {t(
+                    "businessInformation"
+                  )}
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                   <ViewField
-                    label={t("vatNumber")}
-                    value={viewing.vat_number}
+                    label={t(
+                      "vatNumber"
+                    )}
+                    value={
+                      viewing.vat_number
+                    }
                   />
 
                   <ViewField
-                    label={t("kvkNumber")}
-                    value={viewing.kvk_number}
+                    label={t(
+                      "kvkNumber"
+                    )}
+                    value={
+                      viewing.kvk_number
+                    }
                   />
 
                 </div>
@@ -821,32 +1050,49 @@ export default function Suppliers() {
 
 
               {/* Address */}
+
               <div className="space-y-3">
 
                 <h3 className="text-sm font-semibold">
-                  {t("addressInformation")}
+                  {t(
+                    "addressInformation"
+                  )}
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                   <ViewField
-                    label={t("address")}
-                    value={viewing.address}
+                    label={t(
+                      "address"
+                    )}
+                    value={
+                      viewing.address
+                    }
                   />
 
                   <ViewField
-                    label={t("postalCode")}
-                    value={viewing.postal_code}
+                    label={t(
+                      "postalCode"
+                    )}
+                    value={
+                      viewing.postal_code
+                    }
                   />
 
                   <ViewField
                     label={t("city")}
-                    value={viewing.city}
+                    value={
+                      viewing.city
+                    }
                   />
 
                   <ViewField
-                    label={t("country")}
-                    value={viewing.country}
+                    label={t(
+                      "country"
+                    )}
+                    value={
+                      viewing.country
+                    }
                   />
 
                 </div>
@@ -855,10 +1101,13 @@ export default function Suppliers() {
 
 
               {/* Banking */}
+
               <div className="space-y-3">
 
                 <h3 className="text-sm font-semibold">
-                  {t("bankingInformation")}
+                  {t(
+                    "bankingInformation"
+                  )}
                 </h3>
 
                 <ViewField
@@ -870,6 +1119,7 @@ export default function Suppliers() {
 
 
               {/* Notes */}
+
               <div className="space-y-3">
 
                 <h3 className="text-sm font-semibold">
@@ -877,20 +1127,24 @@ export default function Suppliers() {
                 </h3>
 
                 <div className="rounded-md border border-border p-4 text-sm whitespace-pre-wrap">
-                  {viewing.notes || "—"}
+                  {viewing.notes ||
+                    "—"}
                 </div>
 
               </div>
 
 
               {/* Footer */}
+
               <DialogFooter>
 
                 <Button
                   variant="outline"
                   onClick={() => {
                     setViewOpen(false);
-                    openEdit(viewing);
+                    openEdit(
+                      viewing
+                    );
                   }}
                 >
                   <Pencil className="h-4 w-4 mr-2" />
