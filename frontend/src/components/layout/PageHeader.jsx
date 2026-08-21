@@ -1,6 +1,3 @@
-import NotificationBell from "./NotificationBell";
-
-
 export default function PageHeader({
   title,
   description,
@@ -9,30 +6,34 @@ export default function PageHeader({
 }) {
   return (
     <div
-      className="px-8 pt-8 pb-6 border-b border-border"
-      data-testid={
-        testid || "page-header"
-      }
+      className="
+        w-full
+        border-b border-border
+        px-4 py-5
+        sm:px-6 sm:py-6
+        lg:px-8 lg:pt-8 lg:pb-6
+      "
+      data-testid={testid || "page-header"}
     >
       <div
         className="
           flex
           flex-col
+          gap-4
           sm:flex-row
           sm:items-end
           sm:justify-between
-          gap-4
         "
       >
 
-        {/* LEFT */}
-        <div>
+        <div className="min-w-0">
           <h1
             className="
-              text-3xl
-              sm:text-4xl
+              text-2xl
               font-bold
               tracking-tight
+              sm:text-3xl
+              lg:text-4xl
             "
             data-testid="page-title"
           >
@@ -43,9 +44,10 @@ export default function PageHeader({
             <p
               className="
                 mt-2
-                text-sm
-                text-muted-foreground
                 max-w-2xl
+                text-sm
+                leading-6
+                text-muted-foreground
               "
             >
               {description}
@@ -54,28 +56,21 @@ export default function PageHeader({
         </div>
 
 
-        {/* RIGHT */}
-        <div
-          className="
-            flex
-            gap-2
-            items-center
-            self-start
-            sm:self-auto
-          "
-        >
-
-          {/* Notifications */}
-          <NotificationBell />
-
-          {/* Existing page buttons */}
-          {right && (
-            <div className="flex gap-2 items-center">
-              {right}
-            </div>
-          )}
-
-        </div>
+        {right && (
+          <div
+            className="
+              flex
+              w-full
+              flex-wrap
+              items-center
+              gap-2
+              sm:w-auto
+              sm:shrink-0
+            "
+          >
+            {right}
+          </div>
+        )}
 
       </div>
     </div>

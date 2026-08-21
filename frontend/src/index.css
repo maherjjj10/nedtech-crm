@@ -4,121 +4,468 @@
 @tailwind components;
 @tailwind utilities;
 
+
+/* =========================================================
+   FONTS
+========================================================= */
+
 :root {
-    --font-heading: "Cabinet Grotesk", ui-sans-serif, system-ui, sans-serif;
-    --font-body: "Satoshi", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Cabinet Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Satoshi", ui-sans-serif, system-ui, sans-serif;
 }
+
+
+/* =========================================================
+   THEME
+========================================================= */
 
 @layer base {
-    :root {
-        --background: 0 0% 99.2%;
-        --foreground: 0 0% 4%;
-        --card: 0 0% 100%;
-        --card-foreground: 0 0% 4%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 4%;
-        --primary: 0 0% 9%;
-        --primary-foreground: 0 0% 98%;
-        --secondary: 0 0% 96%;
-        --secondary-foreground: 0 0% 9%;
-        --muted: 0 0% 96%;
-        --muted-foreground: 0 0% 40%;
-        --accent: 0 0% 94%;
-        --accent-foreground: 0 0% 9%;
-        --destructive: 0 72% 45%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 90%;
-        --input: 0 0% 90%;
-        --ring: 0 0% 9%;
-        --chart-1: 220 90% 55%;
-        --chart-2: 160 70% 40%;
-        --chart-3: 30 90% 55%;
-        --chart-4: 280 65% 55%;
-        --chart-5: 340 75% 55%;
-        --radius: 0.5rem;
+
+  :root {
+    --background: 0 0% 99.2%;
+    --foreground: 0 0% 4%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 4%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 4%;
+
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 9%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 40%;
+
+    --accent: 0 0% 94%;
+    --accent-foreground: 0 0% 9%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 9%;
+
+    --chart-1: 220 90% 55%;
+    --chart-2: 160 70% 40%;
+    --chart-3: 30 90% 55%;
+    --chart-4: 280 65% 55%;
+    --chart-5: 340 75% 55%;
+
+    --radius: 0.5rem;
+  }
+
+
+  .dark {
+    --background: 0 0% 4%;
+    --foreground: 0 0% 99%;
+
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 99%;
+
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 99%;
+
+    --primary: 0 0% 99%;
+    --primary-foreground: 0 0% 9%;
+
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 99%;
+
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 65%;
+
+    --accent: 0 0% 14%;
+    --accent-foreground: 0 0% 99%;
+
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 0 0% 99%;
+
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 0 0% 85%;
+  }
+
+
+  /* =====================================================
+     GLOBAL RESET
+  ===================================================== */
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+
+  html {
+    width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+
+  body {
+    @apply bg-background text-foreground;
+
+    width: 100%;
+    min-width: 0;
+    min-height: 100dvh;
+
+    margin: 0;
+    padding: 0;
+
+    font-family: var(--font-body);
+
+    font-feature-settings:
+      "ss01",
+      "cv01",
+      "cv02";
+
+    -webkit-font-smoothing: antialiased;
+
+    overflow-x: hidden;
+  }
+
+
+  #root {
+    width: 100%;
+    min-width: 0;
+    min-height: 100dvh;
+  }
+
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
+  }
+
+
+  /* Better mobile inputs */
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+  }
+
+
+  input,
+  textarea,
+  select {
+    min-width: 0;
+  }
+
+
+  textarea {
+    resize: vertical;
+  }
+
+
+  /* Prevent iOS zoom when focusing inputs */
+
+  @media (max-width: 767px) {
+    input,
+    textarea,
+    select {
+      font-size: 16px;
     }
-    .dark {
-        --background: 0 0% 4%;
-        --foreground: 0 0% 99%;
-        --card: 0 0% 7%;
-        --card-foreground: 0 0% 99%;
-        --popover: 0 0% 8%;
-        --popover-foreground: 0 0% 99%;
-        --primary: 0 0% 99%;
-        --primary-foreground: 0 0% 9%;
-        --secondary: 0 0% 12%;
-        --secondary-foreground: 0 0% 99%;
-        --muted: 0 0% 12%;
-        --muted-foreground: 0 0% 65%;
-        --accent: 0 0% 14%;
-        --accent-foreground: 0 0% 99%;
-        --destructive: 0 65% 45%;
-        --destructive-foreground: 0 0% 99%;
-        --border: 0 0% 15%;
-        --input: 0 0% 15%;
-        --ring: 0 0% 85%;
-    }
+  }
+
 }
 
-@layer base {
-    * {
-        @apply border-border;
-    }
-    html,
-    body {
-        @apply bg-background text-foreground;
-        font-family: var(--font-body);
-        font-feature-settings:
-            "ss01", "cv01", "cv02";
-        -webkit-font-smoothing: antialiased;
-    }
-    h1,
-    h2,
-    h3,
-    h4,
-    h5 {
-        font-family: var(--font-heading);
-        letter-spacing: -0.02em;
-    }
-}
 
-/* Kanban and layout helpers */
+/* =========================================================
+   KANBAN / GRID
+========================================================= */
+
 .n-grid-bg {
-    background-image:
-        linear-gradient(to right, hsl(var(--border) / 0.55) 1px, transparent 1px),
-        linear-gradient(to bottom, hsl(var(--border) / 0.55) 1px, transparent 1px);
-    background-size: 32px 32px;
+  background-image:
+    linear-gradient(
+      to right,
+      hsl(var(--border) / 0.55) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      hsl(var(--border) / 0.55) 1px,
+      transparent 1px
+    );
+
+  background-size: 32px 32px;
 }
+
+
+/* =========================================================
+   SCROLL
+========================================================= */
 
 .n-scroll {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  scrollbar-width: thin;
+  scrollbar-color:
+    hsl(var(--muted-foreground) / 0.4)
+    transparent;
 }
+
 .n-scroll::-webkit-scrollbar {
-    height: 8px;
-    width: 8px;
+  height: 8px;
+  width: 8px;
 }
+
 .n-scroll::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.35);
-    border-radius: 999px;
+  background: hsl(var(--muted-foreground) / 0.35);
+  border-radius: 999px;
 }
+
+
+/* =========================================================
+   CARD HOVER
+========================================================= */
 
 .n-card-hover {
-    transition:
-        transform 200ms ease-out,
-        border-color 200ms ease-out,
-        background-color 200ms ease-out;
-}
-.n-card-hover:hover {
-    transform: translateY(-2px);
-    border-color: hsl(var(--foreground) / 0.4);
+  transition:
+    transform 200ms ease-out,
+    border-color 200ms ease-out,
+    background-color 200ms ease-out;
 }
 
-/* Small overline label */
+.n-card-hover:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--foreground) / 0.4);
+}
+
+
+/* =========================================================
+   OVERLINE
+========================================================= */
+
 .n-overline {
-    font-size: 0.7rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: hsl(var(--muted-foreground));
-    font-weight: 500;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+}
+
+
+/* =========================================================
+   RESPONSIVE CONTAINER
+========================================================= */
+
+.responsive-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+
+/* =========================================================
+   RESPONSIVE FORM
+========================================================= */
+
+.responsive-form {
+  width: 100%;
+  max-width: 100%;
+}
+
+.responsive-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .responsive-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+/* =========================================================
+   RESPONSIVE DIALOGS
+========================================================= */
+
+/*
+  Makes Radix/shadcn dialogs usable on:
+  - iPhone
+  - Android
+  - iPad
+  - Desktop
+*/
+
+[role="dialog"] {
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+
+/* Mobile dialogs */
+
+@media (max-width: 767px) {
+
+  [role="dialog"] {
+    width: calc(100vw - 1rem) !important;
+    max-width: calc(100vw - 1rem) !important;
+
+    max-height: calc(100dvh - 1rem) !important;
+
+    margin: 0.5rem;
+    border-radius: 0.75rem;
+
+    overflow-y: auto;
+  }
+
+}
+
+
+/* iPad dialogs */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+
+  [role="dialog"] {
+    width: min(680px, calc(100vw - 2rem));
+    max-width: calc(100vw - 2rem);
+    max-height: calc(100dvh - 2rem);
+  }
+
+}
+
+
+/* =========================================================
+   RESPONSIVE TABLE
+========================================================= */
+
+.responsive-table {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.responsive-table > table {
+  min-width: 640px;
+}
+
+
+/* =========================================================
+   MOBILE CARD GRID
+========================================================= */
+
+.responsive-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+
+/* =========================================================
+   SAFE AREA
+========================================================= */
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-left {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-right {
+  padding-right: env(safe-area-inset-right);
+}
+
+
+/* =========================================================
+   TOUCH TARGETS
+========================================================= */
+
+@media (hover: none) and (pointer: coarse) {
+
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+}
+
+
+/* =========================================================
+   MOBILE SPACING
+========================================================= */
+
+@media (max-width: 767px) {
+
+  .mobile-full-width {
+    width: 100% !important;
+  }
+
+  .mobile-stack {
+    flex-direction: column !important;
+  }
+
+  .mobile-hide {
+    display: none !important;
+  }
+
+}
+
+
+/* =========================================================
+   IPAD / TABLET
+========================================================= */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+
+  .tablet-full-width {
+    width: 100% !important;
+  }
+
+}
+
+
+/* =========================================================
+   REDUCE MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
 }
