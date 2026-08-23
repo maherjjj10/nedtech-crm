@@ -347,16 +347,24 @@ export default function Contracts() {
   };
 
   const send = async (id) => {
-    try {
-      const { data } = await api.post(`/contracts/${id}/send`);
-      const url = data.public_url && data.public_url.startsWith("http")
-        ? data.public_url
-        : `${window.location.origin}/public/contract/${data.share_token}`;
-      await navigator.clipboard.writeText(url);
-      toast.success(ct("linkCopiedSend"));
-      load();
-    } catch (err) { toast.error(err?.response?.data?.detail || ct("failed")); }
-  };
+  try {
+    const { data } = await api.post(`/contracts/${id}/send`);
+
+    toast.success(
+      `Contract sent to ${data.recipient}`
+    );
+
+    load();
+  } catch (err) {
+    const detail = err?.response?.data?.detail;
+
+    toast.error(
+      typeof detail === "string"
+        ? detail
+        : detail?.message || ct("failed")
+    );
+  }
+};
 
   const remind = async (id) => {
     try {

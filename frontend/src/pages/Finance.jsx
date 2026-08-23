@@ -34,6 +34,7 @@ import {
   Send,
   Copy,
   Wand2,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "../lib/format";
@@ -142,11 +143,11 @@ function LineItemsEditor({ items, onChange, currency }) {
         {items.map((it, idx) => (
           <div
             key={idx}
-            className="grid grid-cols-12 gap-2 items-center"
+            className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center rounded-lg border border-border/60 p-3 sm:p-0 sm:border-0"
             data-testid={`line-item-row-${idx}`}
           >
             <Input
-              className="col-span-5"
+              className="w-full sm:col-span-5"
               placeholder={t("description")}
               value={it.description}
               onChange={(e) =>
@@ -161,7 +162,7 @@ function LineItemsEditor({ items, onChange, currency }) {
             />
 
             <Input
-              className="col-span-2"
+              className="w-full sm:col-span-2"
               type="number"
               placeholder={t("quantity")}
               value={it.quantity}
@@ -176,7 +177,7 @@ function LineItemsEditor({ items, onChange, currency }) {
             />
 
             <Input
-              className="col-span-2"
+              className="w-full sm:col-span-2"
               type="number"
               placeholder={t("price")}
               value={it.unit_price}
@@ -191,7 +192,7 @@ function LineItemsEditor({ items, onChange, currency }) {
             />
 
             <Input
-              className="col-span-2"
+              className="w-full sm:col-span-2"
               type="number"
               placeholder={t("taxPercent")}
               value={it.tax_rate}
@@ -210,7 +211,7 @@ function LineItemsEditor({ items, onChange, currency }) {
               variant="ghost"
               size="icon"
               onClick={() => rm(idx)}
-              className="col-span-1"
+              className="w-full sm:col-span-1"
               data-testid={`line-remove-${idx}`}
               title={t("delete")}
             >
@@ -267,31 +268,39 @@ function LineItemsEditor({ items, onChange, currency }) {
 function QuoteForm({ initial, onSave, clients = [] }) {
   const { t } = useLanguage();
   const [form, setForm] = useState(initial);
-  const [clientSearch, setClientSearch] = useState("");
+  const [clientSearch, setClientSearch] =
+    useState("");
 
-  const filteredClients = clients.filter((client) => {
-    const search = clientSearch.trim().toLowerCase();
-    if (!search) return true;
+  const filteredClients = clients.filter(
+    (client) => {
+      const search =
+        clientSearch.trim().toLowerCase();
 
-    return [
-      client.name,
-      client.company,
-      client.contact_person,
-      client.email,
-      client.phone,
-      client.vat_number,
-      client.address,
-    ]
-      .filter(Boolean)
-      .some((value) =>
-        String(value).toLowerCase().includes(search)
-      );
-  });
+      if (!search) return true;
+
+      return [
+        client.name,
+        client.company,
+        client.contact_person,
+        client.email,
+        client.phone,
+        client.vat_number,
+        client.address,
+      ]
+        .filter(Boolean)
+        .some((value) =>
+          String(value)
+            .toLowerCase()
+            .includes(search)
+        );
+    }
+  );
 
   const selectedClient =
     clients.find(
       (client) =>
-        String(client.id) === String(form.client_id)
+        String(client.id) ===
+        String(form.client_id)
     ) || null;
 
   const selectClient = (clientId) => {
@@ -305,7 +314,9 @@ function QuoteForm({ initial, onSave, clients = [] }) {
     }
 
     const client = clients.find(
-      (c) => String(c.id) === String(clientId)
+      (c) =>
+        String(c.id) ===
+        String(clientId)
     );
 
     if (!client) return;
@@ -323,7 +334,9 @@ function QuoteForm({ initial, onSave, clients = [] }) {
         e.preventDefault();
 
         if (!form.client_id) {
-          toast.error(t("selectClientRequired"));
+          toast.error(
+            t("selectClientRequired")
+          );
           return;
         }
 
@@ -331,13 +344,14 @@ function QuoteForm({ initial, onSave, clients = [] }) {
       }}
       className="space-y-4"
     >
-      <div className="grid grid-cols-2 gap-3">
-        {/* CRM CLIENT */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5 col-span-2">
           <Label>{t("clientName")}</Label>
 
           <Select
-            value={form.client_id || "__none__"}
+            value={
+              form.client_id || "__none__"
+            }
             onValueChange={selectClient}
           >
             <SelectTrigger
@@ -345,23 +359,33 @@ function QuoteForm({ initial, onSave, clients = [] }) {
               className="w-full"
             >
               <SelectValue
-                placeholder={t("selectClient")}
+                placeholder={t(
+                  "selectClient"
+                )}
               />
             </SelectTrigger>
 
             <SelectContent>
               <div
                 className="p-2 border-b"
-                onKeyDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) =>
+                  e.stopPropagation()
+                }
               >
                 <Input
                   autoFocus
-                  placeholder={t("searchClients")}
+                  placeholder={t(
+                    "searchClients"
+                  )}
                   value={clientSearch}
                   onChange={(e) =>
-                    setClientSearch(e.target.value)
+                    setClientSearch(
+                      e.target.value
+                    )
                   }
-                  onKeyDown={(e) => e.stopPropagation()}
+                  onKeyDown={(e) =>
+                    e.stopPropagation()
+                  }
                   className="h-9"
                 />
               </div>
@@ -370,31 +394,37 @@ function QuoteForm({ initial, onSave, clients = [] }) {
                 {t("selectClient")}
               </SelectItem>
 
-              {filteredClients.length === 0 && (
+              {filteredClients.length ===
+                0 && (
                 <div className="px-3 py-6 text-center text-sm text-muted-foreground">
                   {t("noClientsFound")}
                 </div>
               )}
 
-              {filteredClients.map((client) => (
-                <SelectItem
-                  key={client.id}
-                  value={String(client.id)}
-                >
-                  {client.company
-                    ? `${client.company} — ${client.name || ""}`
-                    : client.name ||
-                      client.email ||
-                      client.id}
-                </SelectItem>
-              ))}
+              {filteredClients.map(
+                (client) => (
+                  <SelectItem
+                    key={client.id}
+                    value={String(
+                      client.id
+                    )}
+                  >
+                    {client.company
+                      ? `${client.company} — ${
+                          client.name || ""
+                        }`
+                      : client.name ||
+                        client.email ||
+                        client.id}
+                  </SelectItem>
+                )
+              )}
             </SelectContent>
           </Select>
         </div>
 
-        {/* CLIENT DETAILS */}
         {selectedClient && (
-          <div className="col-span-2">
+          <div className="md:col-span-2">
             <Card className="p-4 bg-muted/30 border-border/70">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                 <div>
@@ -402,7 +432,8 @@ function QuoteForm({ initial, onSave, clients = [] }) {
                     {t("client")}:
                   </span>{" "}
                   <span className="font-medium">
-                    {selectedClient.name || "—"}
+                    {selectedClient.name ||
+                      "—"}
                   </span>
                 </div>
 
@@ -411,7 +442,8 @@ function QuoteForm({ initial, onSave, clients = [] }) {
                     {t("company")}:
                   </span>{" "}
                   <span className="font-medium">
-                    {selectedClient.company || "—"}
+                    {selectedClient.company ||
+                      "—"}
                   </span>
                 </div>
 
@@ -420,7 +452,8 @@ function QuoteForm({ initial, onSave, clients = [] }) {
                     {t("contact")}:
                   </span>{" "}
                   <span className="font-medium">
-                    {selectedClient.contact_person || "—"}
+                    {selectedClient.contact_person ||
+                      "—"}
                   </span>
                 </div>
 
@@ -429,7 +462,8 @@ function QuoteForm({ initial, onSave, clients = [] }) {
                     {t("email")}:
                   </span>{" "}
                   <span className="font-medium">
-                    {selectedClient.email || "—"}
+                    {selectedClient.email ||
+                      "—"}
                   </span>
                 </div>
 
@@ -438,7 +472,8 @@ function QuoteForm({ initial, onSave, clients = [] }) {
                     {t("phone")}:
                   </span>{" "}
                   <span className="font-medium">
-                    {selectedClient.phone || "—"}
+                    {selectedClient.phone ||
+                      "—"}
                   </span>
                 </div>
 
@@ -447,7 +482,8 @@ function QuoteForm({ initial, onSave, clients = [] }) {
                     {t("vat")}:
                   </span>{" "}
                   <span className="font-medium">
-                    {selectedClient.vat_number || "—"}
+                    {selectedClient.vat_number ||
+                      "—"}
                   </span>
                 </div>
 
@@ -456,7 +492,8 @@ function QuoteForm({ initial, onSave, clients = [] }) {
                     {t("address")}:
                   </span>{" "}
                   <span className="font-medium">
-                    {selectedClient.address || "—"}
+                    {selectedClient.address ||
+                      "—"}
                   </span>
                 </div>
               </div>
@@ -472,7 +509,8 @@ function QuoteForm({ initial, onSave, clients = [] }) {
             onChange={(e) =>
               setForm({
                 ...form,
-                issue_date: e.target.value,
+                issue_date:
+                  e.target.value,
               })
             }
           />
@@ -485,7 +523,8 @@ function QuoteForm({ initial, onSave, clients = [] }) {
             onChange={(e) =>
               setForm({
                 ...form,
-                currency: e.target.value,
+                currency:
+                  e.target.value,
               })
             }
           />
@@ -534,8 +573,10 @@ function InvoiceForm({
   clients,
 }) {
   const { t } = useLanguage();
-  const [form, setForm] = useState(initial);
-  const [clientSearch, setClientSearch] = useState("");
+  const [form, setForm] =
+    useState(initial);
+  const [clientSearch, setClientSearch] =
+    useState("");
 
   const selectedClient =
     clients.find(
@@ -544,27 +585,30 @@ function InvoiceForm({
         String(form.client_id)
     ) || null;
 
-  const filteredClients = clients.filter((client) => {
-    const search = clientSearch.trim().toLowerCase();
+  const filteredClients = clients.filter(
+    (client) => {
+      const search =
+        clientSearch.trim().toLowerCase();
 
-    if (!search) return true;
+      if (!search) return true;
 
-    return [
-      client.name,
-      client.company,
-      client.contact_person,
-      client.email,
-      client.phone,
-      client.vat_number,
-      client.address,
-    ]
-      .filter(Boolean)
-      .some((value) =>
-        String(value)
-          .toLowerCase()
-          .includes(search)
-      );
-  });
+      return [
+        client.name,
+        client.company,
+        client.contact_person,
+        client.email,
+        client.phone,
+        client.vat_number,
+        client.address,
+      ]
+        .filter(Boolean)
+        .some((value) =>
+          String(value)
+            .toLowerCase()
+            .includes(search)
+        );
+    }
+  );
 
   const selectClient = (clientId) => {
     if (clientId === "__none__") {
@@ -591,7 +635,11 @@ function InvoiceForm({
     }));
   };
 
-  const upItem = (idx, key, val) =>
+  const upItem = (
+    idx,
+    key,
+    val
+  ) =>
     setForm((f) => ({
       ...f,
       items: f.items.map((it, i) =>
@@ -660,68 +708,82 @@ function InvoiceForm({
       }}
       className="space-y-4"
     >
-      <div className="grid grid-cols-2 gap-3">
-   {/* CLIENT SELECTOR */}
-<div className="space-y-1.5 col-span-2">
-  <Label>
-    {t("clientName")}
-  </Label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1.5 col-span-2">
+          <Label>
+            {t("clientName")}
+          </Label>
 
-  <Select
-    value={form.client_id || "__none__"}
-    onValueChange={selectClient}
-  >
-    <SelectTrigger
-      data-testid="invoice-client-select"
-      className="w-full"
-    >
-      <SelectValue placeholder="Select client from CRM" />
-    </SelectTrigger>
+          <Select
+            value={
+              form.client_id ||
+              "__none__"
+            }
+            onValueChange={selectClient}
+          >
+            <SelectTrigger
+              data-testid="invoice-client-select"
+              className="w-full"
+            >
+              <SelectValue placeholder="Select client from CRM" />
+            </SelectTrigger>
 
-    <SelectContent>
-      <div
-        className="p-2 border-b"
-        onKeyDown={(e) => e.stopPropagation()}
-      >
-        <Input
-          autoFocus
-          placeholder="Search clients..."
-          value={clientSearch}
-          onChange={(e) =>
-            setClientSearch(e.target.value)
-          }
-          onKeyDown={(e) => e.stopPropagation()}
-          className="h-9"
-        />
-      </div>
+            <SelectContent>
+              <div
+                className="p-2 border-b"
+                onKeyDown={(e) =>
+                  e.stopPropagation()
+                }
+              >
+                <Input
+                  autoFocus
+                  placeholder="Search clients..."
+                  value={clientSearch}
+                  onChange={(e) =>
+                    setClientSearch(
+                      e.target.value
+                    )
+                  }
+                  onKeyDown={(e) =>
+                    e.stopPropagation()
+                  }
+                  className="h-9"
+                />
+              </div>
 
-      <SelectItem value="__none__">
-        Select client from CRM
-      </SelectItem>
+              <SelectItem value="__none__">
+                Select client from CRM
+              </SelectItem>
 
-      {filteredClients.length === 0 && (
-        <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-          No clients found
+              {filteredClients.length ===
+                0 && (
+                <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                  No clients found
+                </div>
+              )}
+
+              {filteredClients.map(
+                (client) => (
+                  <SelectItem
+                    key={client.id}
+                    value={String(
+                      client.id
+                    )}
+                  >
+                    {client.company
+                      ? `${client.company} — ${
+                          client.name || ""
+                        }`
+                      : client.name ||
+                        client.email ||
+                        client.id}
+                  </SelectItem>
+                )
+              )}
+            </SelectContent>
+          </Select>
         </div>
-      )}
 
-      {filteredClients.map((client) => (
-        <SelectItem
-          key={client.id}
-          value={String(client.id)}
-        >
-          {client.company
-            ? `${client.company} — ${client.name || ""}`
-            : client.name ||
-              client.email ||
-              client.id}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
-</div>
-
-        {/* CLIENT DETAILS */}
         {selectedClient && (
           <div className="col-span-2">
             <Card className="p-4 bg-muted/30 border-border/70">
@@ -801,7 +863,9 @@ function InvoiceForm({
         )}
 
         <div className="space-y-1.5">
-          <Label>{t("issueDate")}</Label>
+          <Label>
+            {t("issueDate")}
+          </Label>
 
           <Input
             type="date"
@@ -809,7 +873,8 @@ function InvoiceForm({
             onChange={(e) =>
               setForm({
                 ...form,
-                issue_date: e.target.value,
+                issue_date:
+                  e.target.value,
               })
             }
           />
@@ -824,7 +889,8 @@ function InvoiceForm({
             onChange={(e) =>
               setForm({
                 ...form,
-                due_date: e.target.value,
+                due_date:
+                  e.target.value,
               })
             }
           />
@@ -838,7 +904,8 @@ function InvoiceForm({
             onChange={(e) =>
               setForm({
                 ...form,
-                currency: e.target.value,
+                currency:
+                  e.target.value,
               })
             }
           />
@@ -893,11 +960,13 @@ function InvoiceForm({
         {form.items.map((it, idx) => (
           <div
             key={idx}
-            className="grid grid-cols-12 gap-2 items-center"
+            className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center rounded-lg border border-border/60 p-3 sm:p-0 sm:border-0"
           >
             <Input
-              className="col-span-5"
-              placeholder={t("description")}
+              className="w-full sm:col-span-5"
+              placeholder={t(
+                "description"
+              )}
               value={it.description}
               onChange={(e) =>
                 upItem(
@@ -910,9 +979,11 @@ function InvoiceForm({
             />
 
             <Input
-              className="col-span-2"
+              className="w-full sm:col-span-2"
               type="number"
-              placeholder={t("quantity")}
+              placeholder={t(
+                "quantity"
+              )}
               value={it.quantity}
               onChange={(e) =>
                 upItem(
@@ -924,7 +995,7 @@ function InvoiceForm({
             />
 
             <Input
-              className="col-span-2"
+              className="w-full sm:col-span-2"
               type="number"
               placeholder={t("price")}
               value={it.unit_price}
@@ -938,9 +1009,11 @@ function InvoiceForm({
             />
 
             <Input
-              className="col-span-2"
+              className="w-full sm:col-span-2"
               type="number"
-              placeholder={t("taxPercent")}
+              placeholder={t(
+                "taxPercent"
+              )}
               value={it.tax_rate}
               onChange={(e) =>
                 upItem(
@@ -956,7 +1029,7 @@ function InvoiceForm({
               variant="ghost"
               size="icon"
               onClick={() => rm(idx)}
-              className="col-span-1"
+              className="w-full sm:col-span-1"
               title={t("delete")}
             >
               <Trash2 className="h-4 w-4" />
@@ -1021,15 +1094,25 @@ export default function Finance() {
   const { tenant } = useAuth();
   const { t } = useLanguage();
 
-  const [invoices, setInvoices] = useState([]);
-  const [quotes, setQuotes] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [summary, setSummary] = useState({});
-  const [clients, setClients] = useState([]);
+  const [invoices, setInvoices] =
+    useState([]);
+  const [quotes, setQuotes] =
+    useState([]);
+  const [expenses, setExpenses] =
+    useState([]);
+  const [summary, setSummary] =
+    useState({});
+  const [clients, setClients] =
+    useState([]);
 
-  const [openInv, setOpenInv] = useState(false);
-  const [openQuote, setOpenQuote] = useState(false);
-  const [openExp, setOpenExp] = useState(false);
+  const [openInv, setOpenInv] =
+    useState(false);
+  const [openQuote, setOpenQuote] =
+    useState(false);
+  const [editingQuote, setEditingQuote] =
+    useState(null);
+  const [openExp, setOpenExp] =
+    useState(false);
 
   const [expenseForm, setExpenseForm] =
     useState(emptyExpense);
@@ -1104,26 +1187,75 @@ export default function Finance() {
   const saveQuote = async (form) => {
     try {
       if (!form.client_id) {
-        toast.error(t("selectClientRequired"));
+        toast.error(
+          t("selectClientRequired")
+        );
         return;
       }
 
-      await api.post(
-        "/quotes",
-        form
-      );
+      if (editingQuote?.id) {
+        await api.patch(
+          `/quotes/${editingQuote.id}`,
+          form
+        );
 
-      toast.success(
-        t("quoteCreated")
-      );
+        toast.success(
+          t("quoteUpdated") ||
+            "Quote updated"
+        );
+      } else {
+        await api.post(
+          "/quotes",
+          form
+        );
+
+        toast.success(
+          t("quoteCreated")
+        );
+      }
 
       setOpenQuote(false);
+      setEditingQuote(null);
       load();
-    } catch {
+    } catch (e) {
+      console.error(
+        "Quote save error:",
+        e
+      );
+
       toast.error(
-        t("saveFailed")
+        e?.response?.data?.detail ||
+          t("saveFailed")
       );
     }
+  };
+
+  const editQuote = (quote) => {
+    setEditingQuote({
+      ...quote,
+      items: Array.isArray(
+        quote.items
+      )
+        ? quote.items.map(
+            (item) => ({
+              description:
+                item.description ||
+                "",
+              quantity: Number(
+                item.quantity ?? 1
+              ),
+              unit_price: Number(
+                item.unit_price ?? 0
+              ),
+              tax_rate: Number(
+                item.tax_rate ?? 0
+              ),
+            })
+          )
+        : [],
+    });
+
+    setOpenQuote(true);
   };
 
   const shareQuote = async (id) => {
@@ -1146,6 +1278,49 @@ export default function Finance() {
       toast.error(
         e?.response?.data?.detail ||
           t("failed")
+      );
+    }
+  };
+
+  /*
+   * SEND QUOTE BY EMAIL
+   *
+   * Backend:
+   * POST /quotes/{qid}/email
+   *
+   * The backend:
+   * - finds the CRM client email
+   * - creates/reuses the public share token
+   * - sends the email
+   * - marks the quote as sent
+   * - stores email delivery information
+   */
+  const emailQuote = async (id) => {
+    try {
+      const { data } =
+        await api.post(
+          `/quotes/${id}/email`
+        );
+
+      toast.success(
+        data?.email
+          ? `Quote sent successfully to ${data.email}`
+          : "Quote email sent successfully"
+      );
+
+      load();
+    } catch (e) {
+      console.error(
+        "Quote email error:",
+        e
+      );
+
+      const detail =
+        e?.response?.data?.detail;
+
+      toast.error(
+        detail ||
+          "Failed to send quote email"
       );
     }
   };
@@ -1229,89 +1404,83 @@ export default function Finance() {
     }
   };
 
-  const downloadPdf = async (id, number) => {
-  try {
-    /*
-     * Use the SAME language currently used by the CRM UI.
-     *
-     * We intentionally do NOT use localStorage here because
-     * the language selector / i18n system is the real source
-     * of truth for the active UI language.
-     *
-     * The translated value of "finance" tells us which language
-     * is currently active.
-     */
+  const downloadPdf = async (
+    id,
+    number
+  ) => {
+    try {
+      let pdfLanguage = "en";
 
-    let pdfLanguage = "en";
+      const financeLabel =
+        String(
+          t("finance") || ""
+        )
+          .trim()
+          .toLowerCase();
 
-    const financeLabel = String(
-      t("finance") || ""
-    )
-      .trim()
-      .toLowerCase();
-
-    if (financeLabel === "financiën") {
-      pdfLanguage = "nl";
-    } else if (financeLabel === "finanzen") {
-      pdfLanguage = "de";
-    } else if (financeLabel === "finance") {
-      pdfLanguage = "en";
-    }
-
-    console.log(
-      "CRM UI language:",
-      financeLabel
-    );
-
-    console.log(
-      "Invoice PDF language:",
-      pdfLanguage
-    );
-
-    const res = await api.get(
-      `/invoices/${id}/pdf`,
-      {
-        params: {
-          lang: pdfLanguage,
-        },
-        responseType: "blob",
+      if (
+        financeLabel ===
+        "financiën"
+      ) {
+        pdfLanguage = "nl";
+      } else if (
+        financeLabel ===
+        "finanzen"
+      ) {
+        pdfLanguage = "de";
+      } else if (
+        financeLabel ===
+        "finance"
+      ) {
+        pdfLanguage = "en";
       }
-    );
 
-    const url =
-      window.URL.createObjectURL(
-        new Blob([res.data], {
-          type: "application/pdf",
-        })
+      const res = await api.get(
+        `/invoices/${id}/pdf`,
+        {
+          params: {
+            lang: pdfLanguage,
+          },
+          responseType: "blob",
+        }
       );
 
-    const a =
-      document.createElement("a");
+      const url =
+        window.URL.createObjectURL(
+          new Blob([res.data], {
+            type: "application/pdf",
+          })
+        );
 
-    a.href = url;
+      const a =
+        document.createElement("a");
 
-    a.download = `${
-      number || "invoice"
-    }.pdf`;
+      a.href = url;
 
-    document.body.appendChild(a);
+      a.download = `${
+        number || "invoice"
+      }.pdf`;
 
-    a.click();
+      document.body.appendChild(a);
 
-    a.remove();
+      a.click();
 
-    window.URL.revokeObjectURL(url);
-  } catch (e) {
-    console.error(
-      "Invoice PDF download error:",
-      e
-    );
+      a.remove();
 
-    toast.error(
-      t("downloadFailed")
-    );
-  }
-};
+      window.URL.revokeObjectURL(
+        url
+      );
+    } catch (e) {
+      console.error(
+        "Invoice PDF download error:",
+        e
+      );
+
+      toast.error(
+        t("downloadFailed")
+      );
+    }
+  };
 
   return (
     <>
@@ -1322,9 +1491,8 @@ export default function Finance() {
         )}
       />
 
-      <div className="p-8 space-y-6">
-        {/* KPI */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="p-3 sm:p-5 lg:p-8 space-y-4 sm:space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Card className="p-5 border-border/70">
             <div className="n-overline">
               {t("revenue")}
@@ -1379,7 +1547,10 @@ export default function Finance() {
         </div>
 
         <Tabs defaultValue="invoices">
-          <TabsList data-testid="finance-tabs">
+          <TabsList
+            data-testid="finance-tabs"
+            className="w-full overflow-x-auto justify-start"
+          >
             <TabsTrigger
               value="invoices"
               data-testid="tab-invoices"
@@ -1418,15 +1589,13 @@ export default function Finance() {
                 }
               >
                 <DialogTrigger asChild>
-                  <Button
-                    data-testid="new-invoice-btn"
-                  >
+                  <Button data-testid="new-invoice-btn">
                     <Plus className="h-4 w-4 mr-1" />
                     {t("newInvoice")}
                   </Button>
                 </DialogTrigger>
 
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-[calc(100vw-1rem)] sm:w-full max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                   <DialogHeader>
                     <DialogTitle>
                       {t("newInvoice")}
@@ -1449,13 +1618,13 @@ export default function Finance() {
               </Dialog>
             </div>
 
-            <Card className="border-border/70">
-              <div className="grid grid-cols-12 px-6 py-3 border-b border-border n-overline">
+            <Card className="border-border/70 overflow-hidden">
+              <div className="hidden md:grid grid-cols-12 px-6 py-3 border-b border-border n-overline">
                 <div className="col-span-2">
                   {t("number")}
                 </div>
 
-                <div className="col-span-4">
+                <div className="md:col-span-4">
                   {t("client")}
                 </div>
 
@@ -1472,75 +1641,81 @@ export default function Finance() {
                 </div>
               </div>
 
-              {invoices.length === 0 && (
+              {invoices.length ===
+                0 && (
                 <div className="p-8 text-center text-sm text-muted-foreground">
-                  {t("noInvoicesYet")}
+                  {t(
+                    "noInvoicesYet"
+                  )}
                 </div>
               )}
 
-              {invoices.map((inv) => (
-                <div
-                  key={inv.id}
-                  className="grid grid-cols-12 px-6 py-4 border-b border-border/60 last:border-0 items-center text-sm"
-                  data-testid={`invoice-row-${inv.id}`}
-                >
-                  <div className="col-span-2 font-medium">
-                    {inv.number}
-                  </div>
+              {invoices.map(
+                (inv) => (
+                  <div
+                    key={inv.id}
+                    className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-0 px-4 sm:px-6 py-4 border-b border-border/60 last:border-0 items-center text-sm"
+                    data-testid={`invoice-row-${inv.id}`}
+                  >
+                    <div className="md:col-span-2 font-medium">
+                      {inv.number}
+                    </div>
 
-                  <div className="col-span-4">
-                    {inv.client_name ||
-                      "—"}
-                  </div>
+                    <div className="col-span-4">
+                      {inv.client_name ||
+                        "—"}
+                    </div>
 
-                  <div className="col-span-2 text-muted-foreground">
-                    {formatDate(
-                      inv.due_date
-                    )}
-                  </div>
-
-                  <div className="col-span-2">
-                    <Badge
-                      variant={
-                        inv.status ===
-                        "paid"
-                          ? "default"
-                          : "outline"
-                      }
-                    >
-                      {t(
-                        `invoiceStatus_${inv.status}`
+                    <div className="md:col-span-2 text-muted-foreground">
+                      {formatDate(
+                        inv.due_date
                       )}
-                    </Badge>
-                  </div>
+                    </div>
 
-                  <div className="col-span-2 text-right flex items-center justify-end gap-2">
-                    <span className="font-semibold">
-                      {formatCurrency(
-                        inv.totals?.total,
-                        inv.currency
-                      )}
-                    </span>
+                    <div className="col-span-2">
+                      <Badge
+                        variant={
+                          inv.status ===
+                          "paid"
+                            ? "default"
+                            : "outline"
+                        }
+                      >
+                        {t(
+                          `invoiceStatus_${inv.status}`
+                        )}
+                      </Badge>
+                    </div>
 
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() =>
-                        downloadPdf(
-                          inv.id,
-                          inv.number
-                        )
-                      }
-                      data-testid={`download-invoice-${inv.id}`}
-                      title={t(
-                        "download"
-                      )}
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
+                    <div className="md:col-span-2 text-left md:text-right flex items-center md:justify-end gap-2">
+                      <span className="font-semibold">
+                        {formatCurrency(
+                          inv.totals
+                            ?.total,
+                          inv.currency
+                        )}
+                      </span>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() =>
+                          downloadPdf(
+                            inv.id,
+                            inv.number
+                          )
+                        }
+                        data-testid={`download-invoice-${inv.id}`}
+                        title={t(
+                          "download"
+                        )}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              )}
             </Card>
           </TabsContent>
 
@@ -1555,33 +1730,52 @@ export default function Finance() {
             <div className="flex justify-end mb-3">
               <Dialog
                 open={openQuote}
-                onOpenChange={
-                  setOpenQuote
-                }
+                onOpenChange={(open) => {
+                  setOpenQuote(open);
+
+                  if (!open) {
+                    setEditingQuote(
+                      null
+                    );
+                  }
+                }}
               >
                 <DialogTrigger asChild>
-                  <Button
-                    data-testid="new-quote-btn"
-                  >
+                  <Button data-testid="new-quote-btn">
                     <Plus className="h-4 w-4 mr-1" />
                     {t("newQuote")}
                   </Button>
                 </DialogTrigger>
 
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="w-[calc(100vw-1rem)] sm:w-full max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                   <DialogHeader>
                     <DialogTitle>
-                      {t("newQuote")}
+                      {editingQuote
+                        ? t(
+                            "editQuote"
+                          ) ||
+                          "Edit Quote"
+                        : t(
+                            "newQuote"
+                          )}
                     </DialogTitle>
                   </DialogHeader>
 
                   <QuoteForm
-                    initial={{
-                      ...emptyQuote,
-                      currency:
-                        tenant?.currency ||
-                        "USD",
-                    }}
+                    key={
+                      editingQuote?.id ||
+                      "new-quote"
+                    }
+                    initial={
+                      editingQuote
+                        ? editingQuote
+                        : {
+                            ...emptyQuote,
+                            currency:
+                              tenant?.currency ||
+                              "USD",
+                          }
+                    }
                     clients={clients}
                     onSave={
                       saveQuote
@@ -1591,8 +1785,8 @@ export default function Finance() {
               </Dialog>
             </div>
 
-            <Card className="border-border/70">
-              <div className="grid grid-cols-12 px-6 py-3 border-b border-border n-overline">
+            <Card className="border-border/70 overflow-hidden">
+              <div className="hidden md:grid grid-cols-12 px-6 py-3 border-b border-border n-overline">
                 <div className="col-span-2">
                   {t("number")}
                 </div>
@@ -1614,16 +1808,19 @@ export default function Finance() {
                 </div>
               </div>
 
-              {quotes.length === 0 && (
+              {quotes.length ===
+                0 && (
                 <div className="p-8 text-center text-sm text-muted-foreground">
-                  {t("noQuotesYet")}
+                  {t(
+                    "noQuotesYet"
+                  )}
                 </div>
               )}
 
               {quotes.map((q) => (
                 <div
                   key={q.id}
-                  className="grid grid-cols-12 px-6 py-4 border-b border-border/60 last:border-0 items-center text-sm"
+                  className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-0 px-4 sm:px-6 py-4 border-b border-border/60 last:border-0 items-center text-sm"
                   data-testid={`quote-row-${q.id}`}
                 >
                   <div className="col-span-2 font-medium">
@@ -1659,28 +1856,70 @@ export default function Finance() {
                     )}
                   </div>
 
-                  <div className="col-span-3 text-right flex items-center justify-end gap-1">
+                  <div className="col-span-3 text-right flex items-center justify-end gap-1 flex-wrap">
+                    {/* EDIT + SHARE + EMAIL */}
                     {q.status !==
                       "converted" &&
                       q.status !==
                         "accepted" &&
                       q.status !==
                         "rejected" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            shareQuote(
-                              q.id
-                            )
-                          }
-                          data-testid={`share-quote-${q.id}`}
-                        >
-                          <Send className="h-3 w-3 mr-1" />
-                          {t("share")}
-                        </Button>
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                              editQuote(
+                                q
+                              )
+                            }
+                            data-testid={`edit-quote-${q.id}`}
+                            title={
+                              t(
+                                "edit"
+                              ) ||
+                              "Edit"
+                            }
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+
+                          {/* SHARE / COPY PUBLIC LINK */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              shareQuote(
+                                q.id
+                              )
+                            }
+                            data-testid={`share-quote-${q.id}`}
+                          >
+                            <Send className="h-3 w-3 mr-1" />
+                            {t(
+                              "share"
+                            )}
+                          </Button>
+
+                          {/* SEND EMAIL */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              emailQuote(
+                                q.id
+                              )
+                            }
+                            data-testid={`email-quote-${q.id}`}
+                            title="Send quote by email"
+                          >
+                            <Send className="h-3 w-3 mr-1" />
+                            Send Email
+                          </Button>
+                        </>
                       )}
 
+                    {/* COPY EXISTING PUBLIC LINK */}
                     {q.share_token &&
                       q.status !==
                         "converted" && (
@@ -1691,7 +1930,8 @@ export default function Finance() {
                             "copyLink"
                           )}
                           onClick={async () => {
-                            const url = `${window.location.origin}/public/quote/${q.share_token}`;
+                            const url =
+                              `${window.location.origin}/public/quote/${q.share_token}`;
 
                             await navigator.clipboard.writeText(
                               url
@@ -1709,6 +1949,7 @@ export default function Finance() {
                         </Button>
                       )}
 
+                    {/* CONVERT ACCEPTED QUOTE */}
                     {q.status ===
                       "accepted" && (
                       <Button
@@ -1721,10 +1962,13 @@ export default function Finance() {
                         data-testid={`convert-quote-${q.id}`}
                       >
                         <Wand2 className="h-3 w-3 mr-1" />
-                        {t("convert")}
+                        {t(
+                          "convert"
+                        )}
                       </Button>
                     )}
 
+                    {/* DELETE */}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -1762,15 +2006,13 @@ export default function Finance() {
                 }
               >
                 <DialogTrigger asChild>
-                  <Button
-                    data-testid="new-expense-btn"
-                  >
+                  <Button data-testid="new-expense-btn">
                     <Plus className="h-4 w-4 mr-1" />
                     {t("newExpense")}
                   </Button>
                 </DialogTrigger>
 
-                <DialogContent>
+                <DialogContent className="w-[calc(100vw-1rem)] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>
                       {t("newExpense")}
@@ -1786,7 +2028,9 @@ export default function Finance() {
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5 col-span-2">
                         <Label>
-                          {t("vendor")}
+                          {t(
+                            "vendor"
+                          )}
                         </Label>
 
                         <Input
@@ -1794,19 +2038,23 @@ export default function Finance() {
                             expenseForm.vendor
                           }
                           onChange={(e) =>
-                            setExpenseForm({
-                              ...expenseForm,
-                              vendor:
-                                e.target
-                                  .value,
-                            })
+                            setExpenseForm(
+                              {
+                                ...expenseForm,
+                                vendor:
+                                  e.target
+                                    .value,
+                              }
+                            )
                           }
                         />
                       </div>
 
                       <div className="space-y-1.5">
                         <Label>
-                          {t("category")}
+                          {t(
+                            "category"
+                          )}
                         </Label>
 
                         <Input
@@ -1814,12 +2062,14 @@ export default function Finance() {
                             expenseForm.category
                           }
                           onChange={(e) =>
-                            setExpenseForm({
-                              ...expenseForm,
-                              category:
-                                e.target
-                                  .value,
-                            })
+                            setExpenseForm(
+                              {
+                                ...expenseForm,
+                                category:
+                                  e.target
+                                    .value,
+                              }
+                            )
                           }
                         />
                       </div>
@@ -1835,18 +2085,23 @@ export default function Finance() {
                             expenseForm.date
                           }
                           onChange={(e) =>
-                            setExpenseForm({
-                              ...expenseForm,
-                              date: e.target
-                                .value,
-                            })
+                            setExpenseForm(
+                              {
+                                ...expenseForm,
+                                date: e
+                                  .target
+                                  .value,
+                              }
+                            )
                           }
                         />
                       </div>
 
                       <div className="space-y-1.5">
                         <Label>
-                          {t("amount")}
+                          {t(
+                            "amount"
+                          )}
                         </Label>
 
                         <Input
@@ -1855,12 +2110,14 @@ export default function Finance() {
                             expenseForm.amount
                           }
                           onChange={(e) =>
-                            setExpenseForm({
-                              ...expenseForm,
-                              amount:
-                                e.target
-                                  .value,
-                            })
+                            setExpenseForm(
+                              {
+                                ...expenseForm,
+                                amount:
+                                  e.target
+                                    .value,
+                              }
+                            )
                           }
                           required
                         />
@@ -1879,12 +2136,14 @@ export default function Finance() {
                             expenseForm.tax_rate
                           }
                           onChange={(e) =>
-                            setExpenseForm({
-                              ...expenseForm,
-                              tax_rate:
-                                e.target
-                                  .value,
-                            })
+                            setExpenseForm(
+                              {
+                                ...expenseForm,
+                                tax_rate:
+                                  e.target
+                                    .value,
+                              }
+                            )
                           }
                         />
                       </div>
@@ -1901,12 +2160,14 @@ export default function Finance() {
                             expenseForm.description
                           }
                           onChange={(e) =>
-                            setExpenseForm({
-                              ...expenseForm,
-                              description:
-                                e.target
-                                  .value,
-                            })
+                            setExpenseForm(
+                              {
+                                ...expenseForm,
+                                description:
+                                  e.target
+                                    .value,
+                              }
+                            )
                           }
                         />
                       </div>
@@ -1928,7 +2189,8 @@ export default function Finance() {
             </div>
 
             <Card className="border-border/70">
-              {expenses.length === 0 && (
+              {expenses.length ===
+                0 && (
                 <div className="p-8 text-center text-sm text-muted-foreground">
                   {t(
                     "noExpensesYet"
@@ -1940,17 +2202,22 @@ export default function Finance() {
                 (expense) => (
                   <div
                     key={expense.id}
-                    className="flex items-center justify-between px-6 py-3 border-b border-border/60 last:border-0 text-sm"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-6 py-3 border-b border-border/60 last:border-0 text-sm"
                   >
                     <div>
                       <div className="font-medium">
                         {expense.vendor ||
                           expense.description ||
-                          t("expense")}
+                          t(
+                            "expense"
+                          )}
                       </div>
 
                       <div className="text-xs text-muted-foreground">
-                        {expense.category} ·{" "}
+                        {
+                          expense.category
+                        }{" "}
+                        ·{" "}
                         {formatDate(
                           expense.date
                         )}

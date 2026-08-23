@@ -22,10 +22,11 @@ from app.core.security import create_access_token, hash_password
 router = APIRouter(tags=["Team Invites"])
 
 
-INVITE_BASE_URL = os.environ.get(
-    "INVITE_BASE_URL",
-    "http://localhost:3000",
-)
+INVITE_BASE_URL = (
+    os.environ.get("INVITE_BASE_URL")
+    or os.environ.get("FRONTEND_URL")
+    or "http://localhost:3000"
+).rstrip("/")
 
 
 # ============================================================
@@ -268,14 +269,14 @@ async def create_invite(
         upsert=True,
     )
 
-    # --------------------------------------------------------
+        # --------------------------------------------------------
     # Send email
     # --------------------------------------------------------
 
     url = _invite_url(token)
 
     send_result = await send_html_email(
-        to=body.email,
+        to=email,
         subject=(
             f"You're invited to "
             f"{tenant.get('name', 'our workspace')} "
@@ -283,12 +284,47 @@ async def create_invite(
         ),
         html=_invite_html(
             inviter=user.email,
-            tenant=tenant.get("name", "our workspace"),
+            tenant=tenant.get(
+                "name",
+                "our workspace",
+            ),
             role=role,
             url=url,
         ),
+        reply_to=tenant.get("email"),
     )
 
+    # --------------------------------------------------------
+    # Handle email failure
+    # --------------------------------------------------------
+
+    if not send_result.get("sent"):
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": (
+                    "Invitation was created, "
+                    "but the email could not be sent."
+                ),
+                "reason": send_result.get(
+                    "reason",
+                    "email_send_failed",
+                ),
+            },
+        )
+
+    # --------------------------------------------------------
+    # Response
+    # --------------------------------------------------------
+
+    return {
+        "invite": {
+            **inv,
+            "invite_url": url,
+        },
+        "email": send_result,
+    }
+    
     # --------------------------------------------------------
     # Response
     # --------------------------------------------------------

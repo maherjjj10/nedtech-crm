@@ -3,6 +3,9 @@
 from typing import Optional
 from io import BytesIO
 
+import base64
+from datetime import datetime, timezone
+from app.core.email import send_html_email
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -1498,6 +1501,1012 @@ def _render_invoice_pdf(
 # ============================================================
 
 
+def _quote_language(tenant: dict) -> str:
+    """
+    Determine the quote language from tenant settings.
+
+    Supported:
+    - de = German
+    - nl = Dutch
+    - en = English
+
+    Defaults to German because the primary market includes Germany.
+    """
+    value = (
+        tenant.get("language")
+        or tenant.get("locale")
+        or "de"
+    )
+
+    value = str(value).lower().strip()
+
+    if value.startswith("nl"):
+        return "nl"
+
+    if value.startswith("en"):
+        return "en"
+
+    return "de"
+
+
+def _render_quote_pdf(
+    quote: dict,
+    tenant: dict,
+    client: dict,
+) -> bytes:
+    """
+    Generate a professional A4 PDF for a quotation / offer.
+    """
+
+    from xml.sax.saxutils import escape
+
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_LEFT, TA_RIGHT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import (
+        ParagraphStyle,
+        getSampleStyleSheet,
+    )
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        SimpleDocTemplate,
+        Paragraph,
+        Spacer,
+        Table,
+        TableStyle,
+        HRFlowable,
+    )
+
+    locale = _quote_language(tenant)
+
+    translations = {
+        "de": {
+            "title": "ANGEBOT",
+            "number": "Angebotsnummer",
+            "issue_date": "Ausstellungsdatum",
+            "valid_until": "Gültig bis",
+            "customer": "KUNDE",
+            "description": "Beschreibung",
+            "quantity": "Menge",
+            "unit_price": "Einzelpreis",
+            "vat": "MwSt.",
+            "amount": "Betrag",
+            "subtotal": "Zwischensumme",
+            "total": "GESAMT",
+            "notes": "Notizen",
+            "contact": "Kontakt",
+            "phone": "Telefon",
+            "email": "E-Mail",
+            "website": "Website",
+            "vat_id": "USt-IdNr.",
+            "kvk": "Handelsregisternr.",
+            "offer_text": "Vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot.",
+        },
+        "nl": {
+            "title": "OFFERTE",
+            "number": "Offertenummer",
+            "issue_date": "Datum",
+            "valid_until": "Geldig tot",
+            "customer": "KLANT",
+            "description": "Omschrijving",
+            "quantity": "Aantal",
+            "unit_price": "Prijs per stuk",
+            "vat": "BTW",
+            "amount": "Bedrag",
+            "subtotal": "Subtotaal",
+            "total": "TOTAAL",
+            "notes": "Notities",
+            "contact": "Contact",
+            "phone": "Telefoon",
+            "email": "E-mail",
+            "website": "Website",
+            "vat_id": "BTW-nummer",
+            "kvk": "KvK-nummer",
+            "offer_text": "Bedankt voor uw aanvraag. Graag doen wij u hierbij de volgende offerte.",
+        },
+        "en": {
+            "title": "QUOTATION",
+            "number": "Quote number",
+            "issue_date": "Issue date",
+            "valid_until": "Valid until",
+            "customer": "CUSTOMER",
+            "description": "Description",
+            "quantity": "Quantity",
+            "unit_price": "Unit price",
+            "vat": "VAT",
+            "amount": "Amount",
+            "subtotal": "Subtotal",
+            "total": "TOTAL",
+            "notes": "Notes",
+            "contact": "Contact",
+            "phone": "Phone",
+            "email": "Email",
+            "website": "Website",
+            "vat_id": "VAT ID",
+            "kvk": "Registration no.",
+            "offer_text": "Thank you for your inquiry. We are pleased to provide you with the following quotation.",
+        },
+    }
+
+    L = translations[locale]
+
+    # --------------------------------------------------------
+    # Helpers
+    # --------------------------------------------------------
+
+    def safe(value) -> str:
+        if value is None:
+            return ""
+
+        return escape(
+            str(value)
+        )
+
+    def money(value) -> str:
+        try:
+            return f"{float(value):,.2f}"
+        except Exception:
+            return "0.00"
+
+    # --------------------------------------------------------
+    # Company
+    # --------------------------------------------------------
+
+    company_name = (
+        tenant.get("name")
+        or "NED Tech"
+    )
+
+    company_address = (
+        tenant.get("address")
+        or ""
+    )
+
+    company_phone = (
+        tenant.get("phone")
+        or ""
+    )
+
+    company_email = (
+        tenant.get("email")
+        or tenant.get("contact_email")
+        or ""
+    )
+
+    company_website = (
+        tenant.get("website")
+        or ""
+    )
+
+    company_vat = (
+        tenant.get("vat_number")
+        or ""
+    )
+
+    company_kvk = (
+        tenant.get("kvk_number")
+        or ""
+    )
+
+    company_iban = (
+        tenant.get("iban")
+        or ""
+    )
+
+    # --------------------------------------------------------
+    # Quote
+    # --------------------------------------------------------
+
+    quote_number = (
+        quote.get("number")
+        or ""
+    )
+
+    issue_date = (
+        quote.get("issue_date")
+        or ""
+    )
+
+    valid_until = (
+        quote.get("due_date")
+        or quote.get("valid_until")
+        or ""
+    )
+
+    currency = (
+        quote.get("currency")
+        or tenant.get("currency")
+        or "EUR"
+    )
+
+    client_name = (
+        client.get("name")
+        or quote.get("client_name")
+        or ""
+    )
+
+    client_company = (
+        client.get("company")
+        or ""
+    )
+
+    client_contact = (
+        client.get("contact_person")
+        or ""
+    )
+
+    client_address = (
+        client.get("address")
+        or ""
+    )
+
+    client_email = (
+        client.get("email")
+        or ""
+    )
+
+    client_phone = (
+        client.get("phone")
+        or ""
+    )
+
+    client_vat = (
+        client.get("vat_number")
+        or ""
+    )
+
+    # --------------------------------------------------------
+    # PDF styles
+    # --------------------------------------------------------
+
+    styles = getSampleStyleSheet()
+
+    company_style = ParagraphStyle(
+        "QuoteCompany",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=14,
+        leading=17,
+        textColor=colors.HexColor("#111111"),
+    )
+
+    title_style = ParagraphStyle(
+        "QuoteTitle",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=24,
+        leading=27,
+        alignment=TA_RIGHT,
+        textColor=colors.HexColor("#111111"),
+    )
+
+    meta_style = ParagraphStyle(
+        "QuoteMeta",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.5,
+        leading=12,
+        alignment=TA_RIGHT,
+        textColor=colors.HexColor("#555555"),
+    )
+
+    section_style = ParagraphStyle(
+        "QuoteSection",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor("#777777"),
+        spaceAfter=3,
+    )
+
+    body_style = ParagraphStyle(
+        "QuoteBody",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=9,
+        leading=13,
+        textColor=colors.HexColor("#222222"),
+    )
+
+    small_style = ParagraphStyle(
+        "QuoteSmall",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8,
+        leading=11,
+        textColor=colors.HexColor("#666666"),
+    )
+
+    table_header_style = ParagraphStyle(
+        "QuoteTableHeader",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=8,
+        leading=10,
+        textColor=colors.white,
+    )
+
+    table_body_style = ParagraphStyle(
+        "QuoteTableBody",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.5,
+        leading=11,
+        textColor=colors.HexColor("#222222"),
+    )
+
+    total_style = ParagraphStyle(
+        "QuoteTotal",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=12,
+        leading=15,
+        alignment=TA_RIGHT,
+        textColor=colors.HexColor("#111111"),
+    )
+
+    # --------------------------------------------------------
+    # Document
+    # --------------------------------------------------------
+
+    buffer = BytesIO()
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=17 * mm,
+        leftMargin=17 * mm,
+        topMargin=16 * mm,
+        bottomMargin=18 * mm,
+        title=f"{L['title']} {quote_number}",
+        author=company_name,
+    )
+
+    story = []
+
+    # --------------------------------------------------------
+    # Header
+    # --------------------------------------------------------
+
+    company_block = [
+        Paragraph(
+            safe(company_name),
+            company_style,
+        )
+    ]
+
+    if company_address:
+        company_block.append(
+            Paragraph(
+                safe(company_address),
+                small_style,
+            )
+        )
+
+    if company_phone:
+        company_block.append(
+            Paragraph(
+                f"{L['phone']}: {safe(company_phone)}",
+                small_style,
+            )
+        )
+
+    if company_email:
+        company_block.append(
+            Paragraph(
+                f"{L['email']}: {safe(company_email)}",
+                small_style,
+            )
+        )
+
+    if company_website:
+        company_block.append(
+            Paragraph(
+                safe(company_website),
+                small_style,
+            )
+        )
+
+    quote_block = [
+        Paragraph(
+            L["title"],
+            title_style,
+        ),
+        Spacer(1, 4),
+        Paragraph(
+            f"<b>{safe(L['number'])}</b>&nbsp;&nbsp;"
+            f"{safe(quote_number)}",
+            meta_style,
+        ),
+        Paragraph(
+            f"<b>{safe(L['issue_date'])}</b>&nbsp;&nbsp;"
+            f"{safe(issue_date)}",
+            meta_style,
+        ),
+    ]
+
+    if valid_until:
+        quote_block.append(
+            Paragraph(
+                f"<b>{safe(L['valid_until'])}</b>&nbsp;&nbsp;"
+                f"{safe(valid_until)}",
+                meta_style,
+            )
+        )
+
+    header = Table(
+        [[
+            company_block,
+            quote_block,
+        ]],
+        colWidths=[
+            88 * mm,
+            89 * mm,
+        ],
+    )
+
+    header.setStyle(
+        TableStyle(
+            [
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "TOP",
+                ),
+                (
+                    "ALIGN",
+                    (1, 0),
+                    (1, 0),
+                    "RIGHT",
+                ),
+                (
+                    "LEFTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    0,
+                ),
+                (
+                    "RIGHTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    0,
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    0,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    0,
+                ),
+            ]
+        )
+    )
+
+    story.append(header)
+
+    story.append(
+        Spacer(
+            1,
+            8,
+        )
+    )
+
+    story.append(
+        HRFlowable(
+            width="100%",
+            thickness=1,
+            color=colors.HexColor("#222222"),
+            spaceBefore=2,
+            spaceAfter=14,
+        )
+    )
+
+    # --------------------------------------------------------
+    # Customer
+    # --------------------------------------------------------
+
+    customer_block = [
+        Paragraph(
+            L["customer"],
+            section_style,
+        ),
+        Spacer(1, 3),
+    ]
+
+    if client_company:
+        customer_block.append(
+            Paragraph(
+                f"<b>{safe(client_company)}</b>",
+                body_style,
+            )
+        )
+
+    if client_name:
+        customer_block.append(
+            Paragraph(
+                safe(client_name),
+                body_style,
+            )
+        )
+
+    if client_contact:
+        customer_block.append(
+            Paragraph(
+                safe(client_contact),
+                small_style,
+            )
+        )
+
+    if client_address:
+        customer_block.append(
+            Paragraph(
+                safe(client_address),
+                small_style,
+            )
+        )
+
+    if client_email:
+        customer_block.append(
+            Paragraph(
+                safe(client_email),
+                small_style,
+            )
+        )
+
+    if client_phone:
+        customer_block.append(
+            Paragraph(
+                safe(client_phone),
+                small_style,
+            )
+        )
+
+    if client_vat:
+        customer_block.append(
+            Paragraph(
+                f"{L['vat_id']}: {safe(client_vat)}",
+                small_style,
+            )
+        )
+
+    customer_table = Table(
+        [[customer_block]],
+        colWidths=[
+            177 * mm
+        ],
+    )
+
+    customer_table.setStyle(
+        TableStyle(
+            [
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, -1),
+                    colors.HexColor("#F7F7F7"),
+                ),
+                (
+                    "BOX",
+                    (0, 0),
+                    (-1, -1),
+                    0.5,
+                    colors.HexColor("#DDDDDD"),
+                ),
+                (
+                    "LEFTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    10,
+                ),
+                (
+                    "RIGHTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    10,
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    8,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    8,
+                ),
+            ]
+        )
+    )
+
+    story.append(customer_table)
+
+    story.append(
+        Spacer(
+            1,
+            12,
+        )
+    )
+
+    story.append(
+        Paragraph(
+            L["offer_text"],
+            body_style,
+        )
+    )
+
+    story.append(
+        Spacer(
+            1,
+            12,
+        )
+    )
+
+    # --------------------------------------------------------
+    # Line items
+    # --------------------------------------------------------
+
+    table_data = [
+        [
+            Paragraph(
+                L["description"],
+                table_header_style,
+            ),
+            Paragraph(
+                L["quantity"],
+                table_header_style,
+            ),
+            Paragraph(
+                L["unit_price"],
+                table_header_style,
+            ),
+            Paragraph(
+                L["vat"],
+                table_header_style,
+            ),
+            Paragraph(
+                L["amount"],
+                table_header_style,
+            ),
+        ]
+    ]
+
+    subtotal = 0.0
+    total_tax = 0.0
+
+    for item in quote.get(
+        "items",
+        [],
+    ):
+        description = (
+            item.get("description")
+            or ""
+        )
+
+        quantity = float(
+            item.get(
+                "quantity",
+                1,
+            )
+            or 0
+        )
+
+        unit_price = float(
+            item.get(
+                "unit_price",
+                0,
+            )
+            or 0
+        )
+
+        tax_rate = float(
+            item.get(
+                "tax_rate",
+                0,
+            )
+            or 0
+        )
+
+        amount = (
+            quantity
+            * unit_price
+        )
+
+        tax = (
+            amount
+            * tax_rate
+            / 100
+        )
+
+        subtotal += amount
+        total_tax += tax
+
+        table_data.append(
+            [
+                Paragraph(
+                    safe(description),
+                    table_body_style,
+                ),
+                Paragraph(
+                    f"{quantity:g}",
+                    table_body_style,
+                ),
+                Paragraph(
+                    f"{money(unit_price)} {safe(currency)}",
+                    table_body_style,
+                ),
+                Paragraph(
+                    f"{tax_rate:g}%",
+                    table_body_style,
+                ),
+                Paragraph(
+                    f"{money(amount)} {safe(currency)}",
+                    table_body_style,
+                ),
+            ]
+        )
+
+    total = (
+        subtotal
+        + total_tax
+    )
+
+    items_table = Table(
+        table_data,
+        colWidths=[
+            76 * mm,
+            20 * mm,
+            29 * mm,
+            20 * mm,
+            32 * mm,
+        ],
+        repeatRows=1,
+    )
+
+    items_table.setStyle(
+        TableStyle(
+            [
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    colors.HexColor("#222222"),
+                ),
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "MIDDLE",
+                ),
+                (
+                    "ALIGN",
+                    (1, 1),
+                    (-1, -1),
+                    "RIGHT",
+                ),
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.35,
+                    colors.HexColor("#DDDDDD"),
+                ),
+                (
+                    "LEFTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7,
+                ),
+                (
+                    "RIGHTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7,
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7,
+                ),
+            ]
+        )
+    )
+
+    story.append(items_table)
+
+    story.append(
+        Spacer(
+            1,
+            12,
+        )
+    )
+
+    # --------------------------------------------------------
+    # Totals
+    # --------------------------------------------------------
+
+    totals_table = Table(
+        [
+            [
+                "",
+                Paragraph(
+                    L["subtotal"],
+                    body_style,
+                ),
+                Paragraph(
+                    f"{money(subtotal)} {safe(currency)}",
+                    body_style,
+                ),
+            ],
+            [
+                "",
+                Paragraph(
+                    L["vat"],
+                    body_style,
+                ),
+                Paragraph(
+                    f"{money(total_tax)} {safe(currency)}",
+                    body_style,
+                ),
+            ],
+            [
+                "",
+                Paragraph(
+                    L["total"],
+                    total_style,
+                ),
+                Paragraph(
+                    f"{money(total)} {safe(currency)}",
+                    total_style,
+                ),
+            ],
+        ],
+        colWidths=[
+            88 * mm,
+            44 * mm,
+            45 * mm,
+    ],
+    )
+
+    totals_table.setStyle(
+        TableStyle(
+            [
+                (
+                    "ALIGN",
+                    (1, 0),
+                    (-1, -1),
+                    "RIGHT",
+                ),
+                (
+                    "LINEABOVE",
+                    (1, 2),
+                    (-1, 2),
+                    1,
+                    colors.HexColor("#222222"),
+                ),
+                (
+                    "TOPPADDING",
+                    (1, 0),
+                    (-1, -1),
+                    4,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (1, 0),
+                    (-1, -1),
+                    4,
+                ),
+            ]
+        )
+    )
+
+    story.append(totals_table)
+
+    # --------------------------------------------------------
+    # Notes
+    # --------------------------------------------------------
+
+    notes = quote.get(
+        "notes"
+    )
+
+    if notes:
+        story.append(
+            Spacer(
+                1,
+                18,
+            )
+        )
+
+        story.append(
+            Paragraph(
+                L["notes"],
+                section_style,
+            )
+        )
+
+        story.append(
+            Paragraph(
+                safe(notes).replace(
+                    "\n",
+                    "<br/>",
+                ),
+                body_style,
+            )
+        )
+
+    # --------------------------------------------------------
+    # Company legal information
+    # --------------------------------------------------------
+
+    legal_parts = []
+
+    if company_vat:
+        legal_parts.append(
+            f"{L['vat_id']}: {safe(company_vat)}"
+        )
+
+    if company_kvk:
+        legal_parts.append(
+            f"{L['kvk']}: {safe(company_kvk)}"
+        )
+
+    if company_iban:
+        legal_parts.append(
+            f"IBAN: {safe(company_iban)}"
+        )
+
+    if legal_parts:
+        story.append(
+            Spacer(
+                1,
+                20,
+            )
+        )
+
+        story.append(
+            HRFlowable(
+                width="100%",
+                thickness=0.5,
+                color=colors.HexColor("#DDDDDD"),
+                spaceBefore=2,
+                spaceAfter=7,
+            )
+        )
+
+        story.append(
+            Paragraph(
+                " &nbsp;&nbsp;|&nbsp;&nbsp; ".join(
+                    legal_parts
+                ),
+                small_style,
+            )
+        )
+
+    # --------------------------------------------------------
+    # Build
+    # --------------------------------------------------------
+
+    doc.build(story)
+
+    return buffer.getvalue()
+
+
 @router.get("/quotes")
 async def list_quotes(
     user: UserDep,
@@ -1567,6 +2576,326 @@ async def update_quote(
     )
 
     return doc
+
+
+@router.get("/quotes/{qid}/pdf")
+async def quote_pdf(
+    qid: str,
+    user: UserDep,
+):
+    db = get_db()
+
+    quote = await db.quotes.find_one(
+        {
+            "id": qid,
+            "tenant_id": user.tenant_id,
+        },
+        {
+            "_id": 0,
+        },
+    )
+
+    if not quote:
+        raise HTTPException(
+            status_code=404,
+            detail="Quote not found",
+        )
+
+    client = {}
+
+    if quote.get("client_id"):
+        client = await db.clients.find_one(
+            {
+                "id": quote["client_id"],
+                "tenant_id": user.tenant_id,
+            },
+            {
+                "_id": 0,
+            },
+        ) or {}
+
+    tenant = await db.tenants.find_one(
+        {
+            "id": user.tenant_id,
+        },
+        {
+            "_id": 0,
+        },
+    ) or {}
+
+    pdf_bytes = _render_quote_pdf(
+        quote,
+        tenant,
+        client,
+    )
+
+    filename = (
+        f"{quote.get('number') or 'quote'}.pdf"
+    )
+
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'inline; filename="{filename}"'
+            )
+        },
+    )
+
+
+@router.post(
+    "/quotes/{qid}/send",
+)
+async def send_quote(
+    qid: str,
+    user: UserDep,
+):
+    db = get_db()
+
+    # --------------------------------------------------------
+    # Load quote
+    # --------------------------------------------------------
+
+    quote = await db.quotes.find_one(
+        {
+            "id": qid,
+            "tenant_id": user.tenant_id,
+        },
+        {
+            "_id": 0,
+        },
+    )
+
+    if not quote:
+        raise HTTPException(
+            status_code=404,
+            detail="Quote not found",
+        )
+
+    # --------------------------------------------------------
+    # Load client
+    # --------------------------------------------------------
+
+    client = {}
+
+    if quote.get("client_id"):
+        client = await db.clients.find_one(
+            {
+                "id": quote["client_id"],
+                "tenant_id": user.tenant_id,
+            },
+            {
+                "_id": 0,
+            },
+        ) or {}
+
+    client_email = (
+        client.get("email")
+        or ""
+    )
+
+    if not client_email:
+        raise HTTPException(
+            status_code=400,
+            detail="The selected client does not have an email address.",
+        )
+
+    # --------------------------------------------------------
+    # Load tenant/company
+    # --------------------------------------------------------
+
+    tenant = await db.tenants.find_one(
+        {
+            "id": user.tenant_id,
+        },
+        {
+            "_id": 0,
+        },
+    ) or {}
+
+    company_name = (
+        tenant.get("name")
+        or "NED Tech CRM"
+    )
+
+    company_email = (
+        tenant.get("email")
+        or tenant.get("contact_email")
+        or None
+    )
+
+    quote_number = (
+        quote.get("number")
+        or qid
+    )
+
+    language = _quote_language(
+        tenant
+    )
+
+    # --------------------------------------------------------
+    # Email translations
+    # --------------------------------------------------------
+
+    email_translations = {
+        "de": {
+            "subject": f"Angebot {quote_number} – {company_name}",
+            "title": "Ihr Angebot",
+            "text": (
+                "vielen Dank für Ihre Anfrage. "
+                "im Anhang finden Sie unser Angebot."
+            ),
+            "regards": "Mit freundlichen Grüßen",
+        },
+        "nl": {
+            "subject": f"Offerte {quote_number} – {company_name}",
+            "title": "Uw offerte",
+            "text": (
+                "bedankt voor uw aanvraag. "
+                "In de bijlage vindt u onze offerte."
+            ),
+            "regards": "Met vriendelijke groet",
+        },
+        "en": {
+            "subject": f"Quotation {quote_number} – {company_name}",
+            "title": "Your quotation",
+            "text": (
+                "thank you for your inquiry. "
+                "Please find our quotation attached."
+            ),
+            "regards": "Kind regards",
+        },
+    }
+
+    E = email_translations[
+        language
+    ]
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <body style="
+        margin:0;
+        padding:0;
+        background:#f5f5f5;
+        font-family:Arial,Helvetica,sans-serif;
+        color:#222;
+    ">
+        <div style="
+            max-width:640px;
+            margin:30px auto;
+            background:#ffffff;
+            padding:40px;
+            border:1px solid #e5e5e5;
+        ">
+            <h2 style="
+                margin:0 0 20px;
+                font-size:24px;
+            ">
+                {E["title"]}
+            </h2>
+
+            <p>
+                {E["text"]}
+            </p>
+
+            <p>
+                <strong>
+                    {quote_number}
+                </strong>
+            </p>
+
+            <p style="
+                margin-top:30px;
+            ">
+                {E["regards"]}
+            </p>
+
+            <p style="
+                margin:4px 0 0;
+                font-weight:bold;
+            ">
+                {company_name}
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+
+    # --------------------------------------------------------
+    # Generate PDF
+    # --------------------------------------------------------
+
+    pdf_bytes = _render_quote_pdf(
+        quote,
+        tenant,
+        client,
+    )
+
+    filename = (
+        f"{quote_number}.pdf"
+    )
+
+    # --------------------------------------------------------
+    # Send
+    # --------------------------------------------------------
+
+    result = await send_html_email(
+        to=client_email,
+        subject=E["subject"],
+        html=html,
+        reply_to=company_email,
+        attachments=[
+            {
+                "filename": filename,
+                "content": pdf_bytes,
+                "content_type": "application/pdf",
+            }
+        ],
+    )
+
+    if not result.get("sent"):
+        reason = result.get(
+            "reason",
+            "email_send_failed",
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not send email: {reason}",
+        )
+
+    # --------------------------------------------------------
+    # Mark quote as sent
+    # --------------------------------------------------------
+
+    sent_at = datetime.now(
+        timezone.utc
+    ).isoformat()
+
+    await db.quotes.update_one(
+        {
+            "id": qid,
+            "tenant_id": user.tenant_id,
+        },
+        {
+            "$set": {
+                "status": "sent",
+                "sent_to": client_email,
+                "sent_at": sent_at,
+            }
+        },
+    )
+
+    return {
+        "sent": True,
+        "quote_id": qid,
+        "quote_number": quote_number,
+        "email": client_email,
+        "sent_at": sent_at,
+        "message_id": result.get("id"),
+    }
 
 
 @router.delete(

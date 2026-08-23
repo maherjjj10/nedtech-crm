@@ -26,6 +26,7 @@ from typing import Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from app.core.email import send_html_email
 
 from app.core.database import get_db
 from app.core.deps import UserDep
@@ -234,6 +235,112 @@ async def delete_template(tid: str, user: UserDep):
         raise HTTPException(400, "System templates cannot be deleted")
     await _tpl_repo().delete(user.tenant_id, tid)
 
+def _contract_email_html(
+    *,
+    client_name: str,
+    company_name: str,
+    sender_name: str,
+    contract_title: str,
+    public_url: str,
+    expires_at: str | None = None,
+) -> str:
+    expiry_html = ""
+
+    if expires_at:
+        expiry_html = f"""
+        <p style="
+            margin-top:20px;
+            padding:12px 16px;
+            background:#fff7ed;
+            border-radius:8px;
+            color:#9a3412;
+        ">
+            <strong>Signing deadline:</strong> {expires_at}
+        </p>
+        """
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <body style="
+        margin:0;
+        padding:40px 20px;
+        background:#f5f5f5;
+        font-family:Arial,Helvetica,sans-serif;
+        color:#111827;
+    ">
+        <div style="
+            max-width:600px;
+            margin:auto;
+            background:#ffffff;
+            padding:40px;
+            border-radius:12px;
+        ">
+
+            <h2 style="margin-top:0;">
+                Contract for your review
+            </h2>
+
+            <p>
+                Hello {client_name or "there"},
+            </p>
+
+            <p>
+                {sender_name} has sent you a contract for your review
+                and signature.
+            </p>
+
+            <div style="
+                margin:25px 0;
+                padding:18px;
+                background:#f8fafc;
+                border-radius:8px;
+            ">
+                <strong>Contract:</strong><br>
+                {contract_title}
+            </div>
+
+            {expiry_html}
+
+            <p style="margin-top:30px;">
+                <a
+                    href="{public_url}"
+                    style="
+                        display:inline-block;
+                        padding:13px 24px;
+                        background:#111827;
+                        color:#ffffff;
+                        text-decoration:none;
+                        border-radius:8px;
+                        font-weight:bold;
+                    "
+                >
+                    View & Sign Contract
+                </a>
+            </p>
+
+            <p style="
+                margin-top:30px;
+                font-size:13px;
+                color:#6b7280;
+            ">
+                You can review and sign the contract using the button above.
+                No account is required.
+            </p>
+
+            <p style="
+                margin-top:25px;
+                font-size:12px;
+                color:#9ca3af;
+            ">
+                If you were not expecting this contract, you can safely
+                ignore this email.
+            </p>
+
+        </div>
+    </body>
+    </html>
+    """
 
 # ---------------------------- Contracts (internal) ---------------------------
 @router.get("")
@@ -363,21 +470,179 @@ async def update_contract(cid: str, body: ContractIn, user: UserDep):
 @router.post("/{cid}/send")
 async def send_contract(cid: str, user: UserDep):
     db = get_db()
-    c = await db.contracts.find_one({"tenant_id": user.tenant_id, "id": cid})
-    if not c:
-        raise HTTPException(404, "Contract not found")
-    if c.get("status") in ("signed", "completed"):
-        raise HTTPException(400, "Contract is already signed")
-    token = c.get("share_token") or secrets.token_urlsafe(24)
-    await db.contracts.update_one(
-        {"tenant_id": user.tenant_id, "id": cid},
-        {"$set": {"share_token": token, "status": "sent",
-                  "sent_at": _now(), "updated_at": _now()}},
+
+    c = await db.contracts.find_one(
+        {
+            "tenant_id": user.tenant_id,
+            "id": cid,
+        },
+        {"_id": 0},
     )
-    c2 = {**c, "share_token": token, "status": "sent"}
-    await _audit(db, c2, "sent", user.email)
-    base = os.environ.get("FRONTEND_URL", "").rstrip("/")
-    return {"share_token": token, "public_url": f"{base}/public/contract/{token}"}
+
+    if not c:
+        raise HTTPException(
+            status_code=404,
+            detail="Contract not found",
+        )
+
+    if c.get("status") in ("signed", "completed"):
+        raise HTTPException(
+            status_code=400,
+            detail="Contract is already signed",
+        )
+
+    # ---------------------------------------------------------
+    # Client email
+    # ---------------------------------------------------------
+
+    client_snapshot = c.get("client_snapshot") or {}
+
+    client_email = (
+        client_snapshot.get("email") or ""
+    ).strip()
+
+    if not client_email:
+        raise HTTPException(
+            status_code=400,
+            detail="This contract has no client email address.",
+        )
+
+    # ---------------------------------------------------------
+    # Tenant
+    # ---------------------------------------------------------
+
+    tenant = await db.tenants.find_one(
+        {"id": user.tenant_id},
+        {"_id": 0},
+    ) or {}
+
+    # ---------------------------------------------------------
+    # Public token
+    # ---------------------------------------------------------
+
+    token = (
+        c.get("share_token")
+        or secrets.token_urlsafe(24)
+    )
+
+    # ---------------------------------------------------------
+    # Public URL
+    # ---------------------------------------------------------
+
+    base = os.environ.get(
+        "FRONTEND_URL",
+        "http://localhost:3000",
+    ).rstrip("/")
+
+    public_url = (
+        f"{base}/public/contract/{token}"
+    )
+
+    # ---------------------------------------------------------
+    # Send email
+    # ---------------------------------------------------------
+
+    send_result = await send_html_email(
+        to=client_email,
+        subject=(
+            f"Contract for review: "
+            f"{c.get('title', 'Contract')}"
+        ),
+        html=_contract_email_html(
+            client_name=(
+                client_snapshot.get("contact_person")
+                or client_snapshot.get("client_name")
+                or ""
+            ),
+            company_name=(
+                client_snapshot.get("company")
+                or ""
+            ),
+            sender_name=(
+                tenant.get("name")
+                or "NED Tech CRM"
+            ),
+            contract_title=(
+                c.get("title")
+                or "Contract"
+            ),
+            public_url=public_url,
+            expires_at=c.get("expires_at"),
+        ),
+        reply_to=(
+            tenant.get("email")
+            or None
+        ),
+    )
+
+    # ---------------------------------------------------------
+    # Email failed
+    # ---------------------------------------------------------
+
+    if not send_result.get("sent"):
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": (
+                    "The contract email could not be sent."
+                ),
+                "reason": send_result.get(
+                    "reason",
+                    "email_send_failed",
+                ),
+            },
+        )
+
+    # ---------------------------------------------------------
+    # Update contract
+    # ---------------------------------------------------------
+
+    now = _now()
+
+    await db.contracts.update_one(
+        {
+            "tenant_id": user.tenant_id,
+            "id": cid,
+        },
+        {
+            "$set": {
+                "share_token": token,
+                "status": "sent",
+                "sent_at": now,
+                "updated_at": now,
+            }
+        },
+    )
+
+    # ---------------------------------------------------------
+    # Audit
+    # ---------------------------------------------------------
+
+    c2 = {
+        **c,
+        "share_token": token,
+        "status": "sent",
+        "sent_at": now,
+    }
+
+    await _audit(
+        db,
+        c2,
+        "sent",
+        user.email,
+        {
+            "recipient": client_email,
+            "email_id": send_result.get("id"),
+        },
+    )
+
+    return {
+        "sent": True,
+        "email": send_result,
+        "recipient": client_email,
+        "share_token": token,
+        "public_url": public_url,
+    }
 
 
 @router.post("/{cid}/reminder", status_code=204)
@@ -518,48 +783,463 @@ async def public_pdf(token: str, lang: str = "en"):
 
 
 @public_router.post("/{token}/sign")
-async def public_sign(token: str, body: SignIn, request: Request):
+async def public_sign(
+    token: str,
+    body: SignIn,
+    request: Request,
+):
+    # ---------------------------------------------------------
+    # Validate signature request
+    # ---------------------------------------------------------
+
     if not body.consent:
-        raise HTTPException(400, "Consent required")
-    if body.signature_type not in ("typed", "drawn"):
-        raise HTTPException(400, "signature_type must be 'typed' or 'drawn'")
-    if body.signature_type == "drawn" and not body.signature_data:
-        raise HTTPException(400, "signature_data required for drawn signature")
+        raise HTTPException(
+            400,
+            "Consent required",
+        )
+
+    if body.signature_type not in (
+        "typed",
+        "drawn",
+    ):
+        raise HTTPException(
+            400,
+            "signature_type must be 'typed' or 'drawn'",
+        )
+
+    if (
+        body.signature_type == "drawn"
+        and not body.signature_data
+    ):
+        raise HTTPException(
+            400,
+            "signature_data required for drawn signature",
+        )
 
     db = get_db()
-    c = await db.contracts.find_one({"share_token": token})
-    if not c:
-        raise HTTPException(404, "Contract not found")
-    if c.get("status") in ("signed", "completed"):
-        raise HTTPException(409, "Already signed")
-    if _is_expired(c):
-        raise HTTPException(410, "This contract has expired")
 
-    ip = request.client.host if request.client else None
-    ua = request.headers.get("user-agent", "")
+    # ---------------------------------------------------------
+    # Load contract
+    # ---------------------------------------------------------
+
+    c = await db.contracts.find_one(
+        {
+            "share_token": token,
+        }
+    )
+
+    if not c:
+        raise HTTPException(
+            404,
+            "Contract not found",
+        )
+
+    if c.get("status") in (
+        "signed",
+        "completed",
+    ):
+        raise HTTPException(
+            409,
+            "Already signed",
+        )
+
+    if _is_expired(c):
+        raise HTTPException(
+            410,
+            "This contract has expired",
+        )
+
+    # ---------------------------------------------------------
+    # Request information
+    # ---------------------------------------------------------
+
+    ip = (
+        request.client.host
+        if request.client
+        else None
+    )
+
+    ua = request.headers.get(
+        "user-agent",
+        "",
+    )
+
+    signed_at = _now()
+
+    # ---------------------------------------------------------
+    # Signature object
+    # ---------------------------------------------------------
+
     signature = {
         "signer_name": body.signer_name,
         "signer_email": body.signer_email,
         "signature_type": body.signature_type,
         "signature_data": body.signature_data,
-        "signed_at": _now(),
-        "ip": ip, "user_agent": ua,
+        "signed_at": signed_at,
+        "ip": ip,
+        "user_agent": ua,
     }
+
+    # ---------------------------------------------------------
+    # Save signature
+    # ---------------------------------------------------------
+
     await db.contracts.update_one(
-        {"id": c["id"]},
-        {"$set": {"status": "signed", "signature": signature,
-                  "signed_at": _now(), "updated_at": _now()}},
+        {
+            "id": c["id"],
+        },
+        {
+            "$set": {
+                "status": "signed",
+                "signature": signature,
+                "signed_at": signed_at,
+                "updated_at": signed_at,
+            }
+        },
     )
-    signed_c = {**c, "status": "signed", "signature": signature}
-    await _audit(db, signed_c, "signed", body.signer_name, {"ip": ip, "ua": ua})
-    await db.activities.insert_one({
-        "_id": new_id(), "id": new_id(), "tenant_id": c["tenant_id"],
-        "type": "contract_signed",
-        "entity_id": c.get("client_id") or c["id"],
-        "message": f"Contract '{c.get('title','')}' signed by {body.signer_name}",
-        "actor": body.signer_name, "created_at": _now(),
-    })
-    return {"ok": True, "signed_at": signature["signed_at"]}
+
+    # ---------------------------------------------------------
+    # Build signed contract
+    # ---------------------------------------------------------
+
+    signed_c = {
+        **c,
+        "status": "signed",
+        "signature": signature,
+        "signed_at": signed_at,
+        "updated_at": signed_at,
+    }
+
+    # ---------------------------------------------------------
+    # Audit
+    # ---------------------------------------------------------
+
+    await _audit(
+        db,
+        signed_c,
+        "signed",
+        body.signer_name,
+        {
+            "ip": ip,
+            "ua": ua,
+        },
+    )
+
+    # ---------------------------------------------------------
+    # Activity
+    # ---------------------------------------------------------
+
+    await db.activities.insert_one(
+        {
+            "_id": new_id(),
+            "id": new_id(),
+            "tenant_id": c["tenant_id"],
+            "type": "contract_signed",
+            "entity_id": (
+                c.get("client_id")
+                or c["id"]
+            ),
+            "message": (
+                f"Contract "
+                f"'{c.get('title', '')}' "
+                f"signed by "
+                f"{body.signer_name}"
+            ),
+            "actor": body.signer_name,
+            "created_at": signed_at,
+        }
+    )
+
+    # ---------------------------------------------------------
+    # Tenant
+    # ---------------------------------------------------------
+
+    tenant = await db.tenants.find_one(
+        {
+            "id": c["tenant_id"],
+        },
+        {
+            "_id": 0,
+        },
+    ) or {}
+
+    # ---------------------------------------------------------
+    # Client email
+    # ---------------------------------------------------------
+
+    client_snapshot = (
+        c.get("client_snapshot")
+        or {}
+    )
+
+    client_email = (
+        body.signer_email
+        or client_snapshot.get("email")
+        or ""
+    ).strip()
+
+    email_result = None
+
+    # ---------------------------------------------------------
+    # Generate + send signed PDF
+    # ---------------------------------------------------------
+
+    if client_email:
+
+        # IMPORTANT:
+        # Render AFTER saving the signature so the
+        # PDF contains the actual signature.
+
+        pdf_bytes = _render_pdf(
+            signed_c,
+            tenant,
+            "en",
+        )
+
+        contract_title = (
+            c.get("title")
+            or "Contract"
+        )
+
+        signer_name = (
+            body.signer_name
+            or client_snapshot.get(
+                "contact_person"
+            )
+            or "Customer"
+        )
+
+        company_name = (
+            tenant.get("name")
+            or "NED Tech CRM"
+        )
+
+        # -----------------------------------------------------
+        # Email HTML
+        # -----------------------------------------------------
+
+        email_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+</head>
+
+<body style="
+    margin:0;
+    padding:40px 20px;
+    background:#f5f5f5;
+    font-family:Arial,Helvetica,sans-serif;
+    color:#171717;
+">
+
+<div style="
+    max-width:600px;
+    margin:auto;
+    background:#ffffff;
+    border-radius:12px;
+    padding:40px;
+">
+
+    <h2 style="
+        margin:0 0 20px;
+        font-size:24px;
+    ">
+        Contract successfully signed
+    </h2>
+
+    <p style="
+        font-size:15px;
+        line-height:1.6;
+    ">
+        Hello {signer_name},
+    </p>
+
+    <p style="
+        font-size:15px;
+        line-height:1.6;
+        color:#444444;
+    ">
+        Your contract
+        <strong>{contract_title}</strong>
+        has been successfully signed.
+    </p>
+
+    <div style="
+        margin:25px 0;
+        padding:18px;
+        background:#f8f8f8;
+        border-radius:8px;
+    ">
+
+        <div style="
+            font-size:12px;
+            color:#777777;
+            margin-bottom:6px;
+        ">
+            CONTRACT
+        </div>
+
+        <div style="
+            font-size:17px;
+            font-weight:700;
+        ">
+            {contract_title}
+        </div>
+
+        <div style="
+            margin-top:16px;
+            font-size:12px;
+            color:#777777;
+        ">
+            SIGNED BY
+        </div>
+
+        <div style="
+            font-size:15px;
+            font-weight:600;
+        ">
+            {signer_name}
+        </div>
+
+    </div>
+
+    <p style="
+        font-size:15px;
+        line-height:1.6;
+        color:#444444;
+    ">
+        A copy of the signed contract is attached
+        to this email for your records.
+    </p>
+
+    <p style="
+        margin-top:30px;
+        font-size:13px;
+        color:#888888;
+        line-height:1.5;
+    ">
+        This document contains the signature and
+        signing information recorded by
+        {company_name}.
+    </p>
+
+</div>
+
+</body>
+</html>
+"""
+
+        # -----------------------------------------------------
+        # Filename
+        # -----------------------------------------------------
+
+        safe_filename = re.sub(
+            r"[^A-Za-z0-9._-]+",
+            "_",
+            contract_title,
+        ).strip("_")
+
+        if not safe_filename:
+            safe_filename = "contract"
+
+        filename = (
+            f"{safe_filename}_signed.pdf"
+        )
+
+                # -----------------------------------------------------
+        # Send
+        # -----------------------------------------------------
+
+        email_result = await send_html_email(
+            to=client_email,
+            subject=(
+                f"Signed contract - "
+                f"{contract_title}"
+            ),
+            html=email_html,
+            reply_to=(
+                tenant.get("email")
+                or None
+            ),
+            attachments=[
+                {
+                    "filename": filename,
+                    "content": pdf_bytes,
+                    "content_type": "application/pdf",
+                }
+            ],
+        )
+
+        print(
+            "========== SIGNED CONTRACT EMAIL =========="
+        )
+        print("Recipient:", client_email)
+        print("PDF bytes:", len(pdf_bytes))
+        print("Email result:", email_result)
+        print(
+            "==========================================="
+        )
+
+        # -----------------------------------------------------
+        # Email audit
+        # -----------------------------------------------------
+
+        if email_result.get("sent"):
+            await _audit(
+                db,
+                signed_c,
+                "signed_copy_sent",
+                "system",
+                {
+                    "recipient": client_email,
+                    "email_id": email_result.get("id"),
+                    "filename": filename,
+                },
+            )
+
+            await db.contracts.update_one(
+                {
+                    "tenant_id": signed_c["tenant_id"],
+                    "id": signed_c["id"],
+                },
+                {
+                    "$set": {
+                        "signed_copy_sent_at": _now(),
+                        "signed_copy_email": client_email,
+                        "signed_copy_email_id": email_result.get("id"),
+                        "updated_at": _now(),
+                    }
+                },
+            )
+
+        else:
+            await _audit(
+                db,
+                signed_c,
+                "signed_copy_failed",
+                "system",
+                {
+                    "recipient": client_email,
+                    "reason": email_result.get(
+                        "reason"
+                    ),
+                },
+            )
+
+    # ---------------------------------------------------------
+    # Response
+    # ---------------------------------------------------------
+
+    return {
+        "ok": True,
+        "signed_at": signed_at,
+        "email": email_result,
+    }
 
 
 @public_router.post("/{token}/reject")
